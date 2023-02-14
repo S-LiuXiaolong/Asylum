@@ -1,0 +1,5 @@
+add_subdirectory(Application)
+add_subdirectory(Camera)
+add_subdirectory(GeomMath)
+add_subdirectory(Physics)
+add_subdirectory(Utility)
