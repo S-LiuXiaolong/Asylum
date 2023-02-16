@@ -29,7 +29,7 @@ void main()
 	my_FragColor0.rgb = instcolor.rgb * matColor.rgb * d + vec3(s);
 	my_FragColor0.a = instcolor.a * matColor.a;
 #else
-	my_FragColor0.rgb = matColor.rgb * d + vec3(s);
+	my_FragColor0.rgb = matColor.rgb * d + vec3(s) + vec3(0.1);
 	my_FragColor0.a = matColor.a;
 #endif
 }

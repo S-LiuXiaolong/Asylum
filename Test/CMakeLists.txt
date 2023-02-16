@@ -1,2 +1,5 @@
+add_subdirectory(Instancing)
 add_subdirectory(NURBS)
 add_subdirectory(Ocean)
+add_subdirectory(ShadowMapping)
+add_subdirectory(STLReader)
