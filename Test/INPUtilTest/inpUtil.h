@@ -1,10 +1,58 @@
 #include <memory>
+#include <fstream>
 #include <iostream>
+#include <streambuf>
 #include <vector>
 
 #include "3Dmath.h"
 
 using namespace Math;
+
+#define isNum(c) (isdigit(c)?c-48:(c=='E'?10:(c=='.'?11:(c=='-'?12:(c=='+'?13:-1)))))
+
+double str2num(std::string s)
+{	//字符串转数字，包括整数、小数和科学记数法 
+	int i, j, k, negative = 0;
+	double n = 0;
+	std::string s1, s2;
+
+	if (s.empty()) return 0;
+	if (s[0] == '-') negative = 1; //设置负数标记 
+	if (s[0] == '+' || s[0] == '-') s = s.substr(1, s.size());
+	//--------------- 
+	for (i = 0; i < s.size(); i++) //排除不需要的字符 
+		if (isNum(s[i]) == -1) return pow(-1.1, 1.1);
+	if (s[0] == 'E' || s[0] == '.' || s[s.size() - 1] == 'E' || s[s.size() - 1] == '.')
+		return pow(-1.1, 1.1); //排除 e或. 出现在首尾 
+	i = -1; j = 0;
+	while ((i = int(s.find('.', ++i))) != s.npos) j++;
+	if (j > 1) return pow(-1.1, 1.1); //排除多个小数点 
+	i = -1; j = 0;
+	while ((i = int(s.find('E', ++i))) != s.npos) j++;
+	if (j > 1) return pow(-1.1, 1.1); //排除多个字母e 
+	if (s.find('E') == s.npos) //没有e时排除加减
+		if (s.find('+') != s.npos || s.find('-') != s.npos) return pow(-1.1, 1.1);
+	//---------------
+	if ((i = int(s.find('E'))) != s.npos) {
+		s1 = s.substr(0, i); //尾数部分 
+		s2 = s.substr(i + 1, s.size()); //阶码 
+		if (s2[0] == '+') s2 = s2.substr(1, s2.size()); //阶码为正数，去掉+ 
+		if (s2.find('.') != s2.npos) return pow(-1.1, 1.1); //阶码不准出现小数
+		n = str2num(s1) * pow(10.0, str2num(s2)); //尾数和阶码分别递归调用 
+		return negative ? -n : n;
+	}
+	i = 0; k = 1;
+	if ((i = int(s.find('.'))) != s.npos) {
+		for (j = i + 1; j < s.length(); j++, k++)
+			n += isNum(s[j]) / pow(10.0, (double)k);
+		n += str2num(s.substr(0, i));  //整数部分递归调用 
+	}
+	else
+		for (j = 0; j < s.size(); j++)
+			n = n * 10 + isNum(s[j]);
+
+	return negative ? -n : n; //负数返回-n 
+}
 
 class Node
 {
@@ -231,6 +279,16 @@ class INPMesh
         std::vector<int> indexbuffer;
 
     private:
+        void PushNode(std::vector<std::string> numsStr)
+        {
+
+        }
+
+        void PushElement(std::vector<std::string> numsStr)
+        {
+
+        }
+
         void GetIndexBuffer()
         {
             for (auto& ele : elements) {
@@ -245,8 +303,125 @@ class INPMesh
 
     public:
         // TODO
-        void LoadINPMesh(std::string inp_file_name)
+        void LoadFromFile(std::string inp_file_path)
         {
+            bool isINP = false;
+            size_t extpos = inp_file_path.rfind('.', inp_file_path.length());
+            if (extpos != std::string::npos) {
+                isINP = (inp_file_path.substr(extpos + 1, inp_file_path.length() - extpos) == "inp");
+            }
 
+            if (!isINP) {
+                std::cout << "Not a .inp file!" << std::endl;
+                return;
+            }
+
+            std::ifstream infile;
+            infile.open(inp_file_path);
+
+            if (!infile) {
+                std::cout << "Open File Fail!" << std::endl;
+                return;
+            }
+			// read .inp text content to a string
+			std::string readStr((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+
+            for(int i = 0; i < readStr.size(); i++){
+                // Change all strings into uppercase
+                readStr[i] = toupper(readStr[i]);
+            }
+
+            // find pos of "*NODE" and "*ELEMENT"
+            size_t nodestart = readStr.find('\n', readStr.find("*NODE"));
+            size_t elestart = readStr.find('\n', readStr.find("*ELEMENT"));
+            
+            size_t currentpos = 0;
+            // read all node information
+            {
+                currentpos = nodestart;
+                while (currentpos < elestart)
+                {
+					if (readStr[currentpos + 1] == ' ') {
+                        std::vector<std::string> nums;
+
+                        size_t lineendpos = readStr.find('\n', currentpos + 1);
+                        while (currentpos < lineendpos) {
+                            size_t numendpos = readStr.find(',', currentpos + 1);
+                            std::string temp = readStr.substr(currentpos + 1, numendpos - currentpos);
+                            size_t numstartpos = temp.rfind(' ') + currentpos + 1;
+                            if (numendpos < lineendpos) {
+                                std::string numStr = readStr.substr(numstartpos + 1, numendpos - numstartpos - 1);
+								currentpos = numendpos;
+
+                                nums.push_back(numStr);
+                            }
+							else {
+                                numendpos = lineendpos;
+								std::string temp = readStr.substr(currentpos + 1, numendpos - currentpos);
+								size_t numstartpos = temp.rfind(' ') + currentpos + 1;
+								std::string numStr = readStr.substr(numstartpos + 1, numendpos - numstartpos - 1);
+                                currentpos = lineendpos;
+
+                                nums.push_back(numStr);
+								for (auto i = nums.begin(); i != nums.end(); i++) {
+									std::cout << *i << ' ';
+								}
+                                std::cout << std::endl;
+
+                                PushNode(nums);
+							}
+                        }
+					}
+// 					else if (readStr[currentpos + 1] != ' ') {
+// 						std::cout << "Now support only .inp file with at least one space ahead of every line.";
+// 					}
+                    else {
+                        currentpos = elestart;
+                        std::cout << "Node content read finish" << std::endl;
+                    }
+				}
+            }
+
+            // read all element information
+            {
+                while (1)
+                {
+                    if (readStr[currentpos + 1] == ' ') {
+                        std::vector<std::string> nums;
+
+                        size_t lineendpos = readStr.find('\n', currentpos + 1);
+                        while (currentpos < lineendpos) {
+                            size_t numendpos = readStr.find(',', currentpos + 1);
+                            std::string temp = readStr.substr(currentpos + 1, numendpos - currentpos);
+                            size_t numstartpos = temp.rfind(' ') + currentpos + 1;
+                            if (numendpos < lineendpos) {
+                                std::string numStr = readStr.substr(numstartpos + 1, numendpos - numstartpos - 1);
+                                currentpos = numendpos;
+                                
+                                nums.push_back(numStr);
+                            }
+                            else {
+                                numendpos = lineendpos;
+                                std::string temp = readStr.substr(currentpos + 1, numendpos - currentpos);
+                                size_t numstartpos = temp.rfind(' ') + currentpos + 1;
+                                std::string numStr = readStr.substr(numstartpos + 1, numendpos - numstartpos - 1);
+                                currentpos = lineendpos;
+                                
+								nums.push_back(numStr);
+								for (auto i = nums.begin(); i != nums.end(); i++) {
+									std::cout << *i << ' ';
+								}
+								std::cout << std::endl;
+
+                                PushElement(nums);
+                            }
+                        }
+                    }
+                    else {
+                        std::cout << "Element content read finish" << std::endl;
+                        break;
+                    }
+                }
+            }
         }
 };

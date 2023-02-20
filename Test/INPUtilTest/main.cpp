@@ -47,6 +47,10 @@ void Test()
 		std::cout << "ele1 = ele2 pass" << std::endl;
 	}
 
+    INPMesh mesh;
+    // TODO: add AssetLoader class to clean the path
+    mesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simple.inp");
+
 }
 
 int main()

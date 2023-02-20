@@ -1,5 +1,8 @@
 #include <memory>
+#include <fstream>
 #include <iostream>
+#include <streambuf>
+#include <vector>
 
 #include "3Dmath.h"
 
@@ -58,16 +61,24 @@ class Face
 {
     protected:
         std::shared_ptr<Node> pNodes[3];
+		int nodeIndex[3];
 
     public:
         Face() {};
         ~Face() {};
 
-        void SetNodes(std::shared_ptr<Node> node1, std::shared_ptr<Node> node2, std::shared_ptr<Node> node3) {
-            pNodes[0] = node1;
-            pNodes[1] = node2;
-            pNodes[2] = node3;
+        void SetNodes(std::shared_ptr<Node> node1, std::shared_ptr<Node> node2, std::shared_ptr<Node> node3, int index[3]) {
+            for (int i = 0; i < 3; i++) {
+                nodeIndex[i] = index[i];
+            }
+            SetNodes(node1, node2, node3);
         };
+
+		void SetNodes(std::shared_ptr<Node> node1, std::shared_ptr<Node> node2, std::shared_ptr<Node> node3) {
+			pNodes[0] = node1;
+			pNodes[1] = node2;
+			pNodes[2] = node3;
+		};
 
         // 		void SetNodes(Node& node1, Node& node2, Node& node3) {
         // 			pNodes[0] = std::make_shared<Node>(node1);
@@ -78,6 +89,11 @@ class Face
         Node* GetNodes() {
             return pNodes->get();
         };
+
+        int* GetIndex()
+        {
+            return nodeIndex;
+        }
 
         Face& operator=(Face& rhs) = delete;
 
@@ -102,55 +118,53 @@ class Face
 class Element
 {
    protected:
+       int nodeIndex[4];
        std::shared_ptr<Node> pNodes[4];
        std::shared_ptr<Face> pFaces[4];
 
    private:
        // Let the normal vectors of all faces point outside the tetrahedron
-       Face GenerateOneFace(std::shared_ptr<Node> node1, std::shared_ptr<Node> node2, std::shared_ptr<Node> node3, Vector3 eleGravityCenter)
-       {
-           Face faceGen;
-
-           Vector3 vecGravity;
-
-           Vector3 node1Vec(node1.get()->GetCoordinate()[0], node1.get()->GetCoordinate()[1], node1.get()->GetCoordinate()[2]);
-           Vector3 node2Vec(node2.get()->GetCoordinate()[0], node2.get()->GetCoordinate()[1], node2.get()->GetCoordinate()[2]);
-           Vector3 node3Vec(node3.get()->GetCoordinate()[0], node3.get()->GetCoordinate()[1], node3.get()->GetCoordinate()[2]);
-
-           float x = (node1Vec.x + node2Vec.x + node3Vec.x) / 3;
-           float y = (node1Vec.y + node2Vec.y + node3Vec.y) / 3;
-           float z = (node1Vec.z + node2Vec.z + node3Vec.z) / 3;
-           Vector3 faceGravityCenter(x, y, z);
-
-           Vec3Subtract(vecGravity, faceGravityCenter, eleGravityCenter);
-
-           // vec1 = node2 - node1; vec2 = node3 - node1
-		   Vector3 vec1;
-		   Vector3 vec2;
-           Vec3Subtract(vec1, node2Vec, node1Vec);
-           Vec3Subtract(vec2, node3Vec, node1Vec);
-
-           Vector3 crossProduct;
-           Vec3Cross(crossProduct, vec1, vec2);
-
-           
-           if (Vec3Dot(vecGravity, crossProduct) > 0) {
-               faceGen.SetNodes(node1, node2, node3);
-           }
-           else {
-               faceGen.SetNodes(node1, node3, node2);
-           }
-
-           return faceGen;
-       }
        void GenerateFaces(Vector3 eleGravityCenter)
        {
            int count = 0;
            for (int i = 0; i < 4; i++) {
                for (int j = i + 1; j < 4; j++) {
                    for (int k = j + 1; k < 4; k++) {
-                       pFaces[count] = std::make_shared<Face>(
-                           GenerateOneFace(pNodes[i], pNodes[j], pNodes[k], eleGravityCenter));
+					   Face faceGen;
+
+					   Vector3 vecGravity;
+
+					   Vector3 node1Vec(pNodes[i].get()->GetCoordinate()[0], pNodes[i].get()->GetCoordinate()[1], pNodes[i].get()->GetCoordinate()[2]);
+					   Vector3 node2Vec(pNodes[j].get()->GetCoordinate()[0], pNodes[j].get()->GetCoordinate()[1], pNodes[j].get()->GetCoordinate()[2]);
+					   Vector3 node3Vec(pNodes[k].get()->GetCoordinate()[0], pNodes[k].get()->GetCoordinate()[1], pNodes[k].get()->GetCoordinate()[2]);
+
+					   float x = (node1Vec.x + node2Vec.x + node3Vec.x) / 3;
+					   float y = (node1Vec.y + node2Vec.y + node3Vec.y) / 3;
+					   float z = (node1Vec.z + node2Vec.z + node3Vec.z) / 3;
+					   Vector3 faceGravityCenter(x, y, z);
+
+					   Vec3Subtract(vecGravity, faceGravityCenter, eleGravityCenter);
+
+					   // vec1 = node2 - node1; vec2 = node3 - node1
+					   Vector3 vec1;
+					   Vector3 vec2;
+					   Vec3Subtract(vec1, node2Vec, node1Vec);
+					   Vec3Subtract(vec2, node3Vec, node1Vec);
+
+					   Vector3 crossProduct;
+					   Vec3Cross(crossProduct, vec1, vec2);
+
+
+					   if (Vec3Dot(vecGravity, crossProduct) > 0) {
+                           int index[3] = { nodeIndex[i], nodeIndex[j], nodeIndex[k] };
+						   faceGen.SetNodes(pNodes[i], pNodes[j], pNodes[k], index);
+					   }
+					   else {
+                           int index[3] = { nodeIndex[i], nodeIndex[k], nodeIndex[j] };
+						   faceGen.SetNodes(pNodes[i], pNodes[k], pNodes[j], index);
+					   }
+
+                       pFaces[count] = std::make_shared<Face>(faceGen);
                        count++;
                    }
                }
@@ -174,6 +188,14 @@ class Element
 
            GenerateFaces(eleGravityCenter);
        }
+
+	   void SetNodes(std::shared_ptr<Node> node1, std::shared_ptr<Node> node2, std::shared_ptr<Node> node3, std::shared_ptr<Node> node4, int index[4]) {
+		   for (int i = 0; i < 4; i++) {
+			   nodeIndex[i] = index[i];
+		   }
+           SetNodes(node1, node2, node3, node4);
+	   }
+
        Node* GetNodes() {
            return pNodes->get();
        };
@@ -190,6 +212,7 @@ class Element
 
        Element& operator=(Element& rhs) = delete;
 
+       // TODO: rewrite here (but seemingly useless)
 	   bool operator==(Element& rhs) {
 		   for (int i = 0; i < 4; i++)
 		   {
@@ -199,4 +222,50 @@ class Element
 		   }
 		   return true;
 	   };
+};
+
+class INPMesh
+{
+    protected:
+        std::vector<Node> nodes;
+        std::vector<Element> elements;
+
+        std::vector<int> indexbuffer;
+
+    private:
+        void GetIndexBuffer()
+        {
+            for (auto& ele : elements) {
+                for (int i = 0; i < 4; i++) {
+                    Face face = ele.GetFaces()[i];
+                    for (int j = 0; j < 3; j++) {
+                        indexbuffer.push_back(face.GetIndex()[j]);
+                    }
+                }
+            }
+        }
+
+    public:
+        // TODO
+        void LoadFromFile(std::string inp_file_path)
+        {
+            bool isINP = false;
+            size_t extpos = inp_file_path.rfind('.', inp_file_path.length());
+            if (extpos != std::string::npos) {
+                isINP = (inp_file_path.substr(extpos + 1, inp_file_path.length() - extpos) == "inp");
+            }
+
+            std::ifstream infile;
+            infile.open(inp_file_path);
+
+			//打开失败，路径不正确
+            if (!infile) {
+                std::cout << "Open File Fail!" << std::endl;
+                return;
+            }
+			//读取文本内容到字符串
+			std::string readStr((std::istreambuf_iterator<char>(infile)), std::istreambuf_iterator<char>());
+
+            std::cout << readStr << std::endl;
+        }
 };
