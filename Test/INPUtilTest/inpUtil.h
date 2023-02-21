@@ -22,15 +22,16 @@ double str2num(std::string s)
 	//--------------- 
 	for (i = 0; i < s.size(); i++) //排除不需要的字符 
 		if (isNum(s[i]) == -1) return pow(-1.1, 1.1);
-	if (s[0] == 'E' || s[0] == '.' || s[s.size() - 1] == 'E' || s[s.size() - 1] == '.')
-		return pow(-1.1, 1.1); //排除 e或. 出现在首尾 
+	// if (s[0] == 'E' || s[0] == '.' || s[s.size() - 1] == 'E' || s[s.size() - 1] == '.') //排除 E或. 出现在首尾 
+	if (s[0] == 'E' || s[0] == '.' || s[s.size() - 1] == 'E')
+		return pow(-1.1, 1.1); //排除E出现在首尾 以及 .出现在首部（inp文件的特殊要求）
 	i = -1; j = 0;
 	while ((i = int(s.find('.', ++i))) != s.npos) j++;
 	if (j > 1) return pow(-1.1, 1.1); //排除多个小数点 
 	i = -1; j = 0;
 	while ((i = int(s.find('E', ++i))) != s.npos) j++;
-	if (j > 1) return pow(-1.1, 1.1); //排除多个字母e 
-	if (s.find('E') == s.npos) //没有e时排除加减
+	if (j > 1) return pow(-1.1, 1.1); //排除多个字母E
+	if (s.find('E') == s.npos) //没有E时排除加减
 		if (s.find('+') != s.npos || s.find('-') != s.npos) return pow(-1.1, 1.1);
 	//---------------
 	if ((i = int(s.find('E'))) != s.npos) {
@@ -43,6 +44,9 @@ double str2num(std::string s)
 	}
 	i = 0; k = 1;
 	if ((i = int(s.find('.'))) != s.npos) {
+		if (s.find('.') == s.length()) {
+			n += str2num(s.substr(0, i - 1));
+		}
 		for (j = i + 1; j < s.length(); j++, k++)
 			n += isNum(s[j]) / pow(10.0, (double)k);
 		n += str2num(s.substr(0, i));  //整数部分递归调用 
@@ -273,27 +277,46 @@ class Element
 class INPMesh
 {
     protected:
-        std::vector<Node> nodes;
-        std::vector<Element> elements;
+        std::vector<std::shared_ptr<Node>> nodes;
+        std::vector<std::shared_ptr<Element>> elements;
 
         std::vector<int> indexbuffer;
 
     private:
-        void PushNode(std::vector<std::string> numsStr)
-        {
+		void PushNode(std::vector<std::string>& numsStr)
+		{
+            std::shared_ptr<Node> node(new Node);
+            std::vector<float> numsFloat;
+			for (auto& i = numsStr.begin(); i != numsStr.end(); i++) {
+				numsFloat.emplace_back(float(str2num(*i)));
+			}
 
-        }
+            node->SetCoordinate(numsFloat[1], numsFloat[2], numsFloat[3]);
+            nodes.push_back(node);
+		}
 
-        void PushElement(std::vector<std::string> numsStr)
-        {
+        // TODO: ignore indices of inp. element cause of convenience
+		void PushElement(std::vector<std::string>& numsStr)
+		{
+            std::shared_ptr<Element> ele(new Element);
+            std::vector<int> numsInt;
+			for (auto& i = numsStr.begin(); i != numsStr.end(); i++) {
+                numsInt.emplace_back(int(str2num(*i)));
+			}
 
-        }
+            // Only for C3D4 type element
+            // Attention: index here start from zero and used for OpenGL indexbuffer
+            // start from numsInt[1] to prevent indices of .inp file own
+            int index[4] = { numsInt[1] - 1 , numsInt[2] - 1 , numsInt[3] - 1 , numsInt[4] - 1 };
+            ele->SetNodes(nodes[index[0]], nodes[index[1]], nodes[index[2]], nodes[index[3]], index);
+            elements.push_back(ele);
+		}
 
         void GetIndexBuffer()
         {
             for (auto& ele : elements) {
                 for (int i = 0; i < 4; i++) {
-                    Face face = ele.GetFaces()[i];
+                    Face face = ele->GetFaces()[i];
                     for (int j = 0; j < 3; j++) {
                         indexbuffer.push_back(face.GetIndex()[j]);
                     }
@@ -363,10 +386,6 @@ class INPMesh
                                 currentpos = lineendpos;
 
                                 nums.push_back(numStr);
-								for (auto i = nums.begin(); i != nums.end(); i++) {
-									std::cout << *i << ' ';
-								}
-                                std::cout << std::endl;
 
                                 PushNode(nums);
 							}
@@ -387,6 +406,7 @@ class INPMesh
                 while (1)
                 {
                     if (readStr[currentpos + 1] == ' ') {
+                        std::vector<float> numsFloat;
                         std::vector<std::string> nums;
 
                         size_t lineendpos = readStr.find('\n', currentpos + 1);
@@ -408,10 +428,6 @@ class INPMesh
                                 currentpos = lineendpos;
                                 
 								nums.push_back(numStr);
-								for (auto i = nums.begin(); i != nums.end(); i++) {
-									std::cout << *i << ' ';
-								}
-								std::cout << std::endl;
 
                                 PushElement(nums);
                             }

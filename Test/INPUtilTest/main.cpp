@@ -49,7 +49,7 @@ void Test()
 
     INPMesh mesh;
     // TODO: add AssetLoader class to clean the path
-    mesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simple.inp");
+    mesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simplest.inp");
 
 }
 
