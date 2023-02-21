@@ -40,14 +40,14 @@ bool InitScene()
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
-	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	glClearDepth(1.0f);
 
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS);
+// 	glEnable(GL_CULL_FACE);
+// 	glCullFace(GL_BACK);
+// 
+// 	glEnable(GL_DEPTH_TEST);
+// 	glDepthFunc(GL_LESS);
 
 // 	if (!GLCreateMeshFromQM("../../../Asset/Mesh/QM/beanbag2.qm", &mesh)) {
 // 		MYERROR("Could not load mesh");
@@ -68,10 +68,12 @@ bool InitScene()
 	if (!GLCreateMesh(nodes.size(), indices.size(), GLMESH_32BIT, decl, &mesh))
 		return false;
 
-	OpenGLAttributeRange* subsettable = nullptr;
-	Math::Vector3* vdata = nullptr;
-	size_t* idata = nullptr;
-	GLuint numsubsets = 0;
+	OpenGLAttributeRange table[] = {
+		{ GLPT_LINELIST, 0, 0, indices.size(), 0, nodes.size(), true }
+	};
+	Math::Vector3* vdata = new Math::Vector3[nodes.size()];
+	int* idata = new int[indices.size()];
+	GLuint numsubsets = 1;
 
 	// TODO: remember to subtract with 1 when putting index into indexbuffer
 	// (index of INP node start with 1 and OpenGL indexbuffer start with 0)
@@ -92,6 +94,8 @@ bool InitScene()
 		{
 			for (int index = 0; index < indices.size(); index++)
 			{
+				auto temp = indices[index];
+				temp = idata[index];
 				idata[index] = indices[index];
 			}
 		}
@@ -99,8 +103,7 @@ bool InitScene()
 	mesh->UnlockIndexBuffer();
 	mesh->UnlockVertexBuffer();
 
-	mesh->SetAttributeTable(subsettable, numsubsets);
-	delete[] subsettable;
+	mesh->SetAttributeTable(table, numsubsets);
 
 	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/blinnphong.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/blinnphong.frag", &blinnphong)) {
 		MYERROR("Could not load 'blinnphong' effect");
