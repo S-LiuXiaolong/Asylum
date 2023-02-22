@@ -112,6 +112,7 @@ class Face
 protected:
 	std::shared_ptr<Node> pNodes[3];
 	int nodeIndex[3];
+	Vector3 normal;
 
 public:
 	Face() {};
@@ -130,6 +131,10 @@ public:
 		pNodes[2] = node3;
 	};
 
+	void SetNormal(Vector3& vec) {
+		normal = vec;
+	}
+
 	// 		void SetNodes(Node& node1, Node& node2, Node& node3) {
 	// 			pNodes[0] = std::make_shared<Node>(node1);
 	// 			pNodes[1] = std::make_shared<Node>(node2);
@@ -139,6 +144,10 @@ public:
 	std::shared_ptr<Node>* GetNodes() {
 		return pNodes;
 	};
+
+	Vector3 GetNormal() {
+		return normal;
+	}
 
 	int* GetIndex()
 	{
@@ -208,10 +217,14 @@ private:
 					if (Vec3Dot(vecGravity, crossProduct) > 0) {
 						int index[3] = { nodeIndex[i], nodeIndex[j], nodeIndex[k] };
 						faceGen.SetNodes(pNodes[i], pNodes[j], pNodes[k], index);
+						faceGen.SetNormal(crossProduct);
 					}
 					else {
 						int index[3] = { nodeIndex[i], nodeIndex[k], nodeIndex[j] };
 						faceGen.SetNodes(pNodes[i], pNodes[k], pNodes[j], index);
+						Vector3 reverse;
+						Vec3Scale(reverse, crossProduct, -1);
+						faceGen.SetNormal(reverse);
 					}
 
 					pFaces[count] = std::make_shared<Face>(faceGen);

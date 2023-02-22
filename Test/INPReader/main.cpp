@@ -7,6 +7,7 @@
 
 #include "application.h"
 #include "gl4ext.h"
+#include "geometryutils.h"
 #include "basiccamera.h"
 
 #include "inpUtil.h"
@@ -33,7 +34,7 @@ BasicCamera light;
 
 bool use_debug = false;
 
-std::shared_ptr<Element> ele;
+typedef GeometryUtils::CommonVertex CommonVertex;
 
 bool InitScene()
 {
@@ -43,11 +44,11 @@ bool InitScene()
 	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	glClearDepth(1.0f);
 
-// 	glEnable(GL_CULL_FACE);
-// 	glCullFace(GL_BACK);
-// 
-// 	glEnable(GL_DEPTH_TEST);
-// 	glDepthFunc(GL_LESS);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_BACK);
+
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS);
 
 // 	if (!GLCreateMeshFromQM("../../../Asset/Mesh/QM/beanbag2.qm", &mesh)) {
 // 		MYERROR("Could not load mesh");
@@ -57,21 +58,24 @@ bool InitScene()
 	// create mesh
 	OpenGLVertexElement decl[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT3, GLDECLUSAGE_POSITION, 0 },
+		{ 0, 12, GLDECLTYPE_FLOAT3, GLDECLUSAGE_NORMAL, 0 },
+		{ 0, 24, GLDECLTYPE_FLOAT2, GLDECLUSAGE_TEXCOORD, 0 },
 		{ 0xff, 0, 0, 0, 0 }
 	};
 
 	// TODO: how to get the index count and index buffer?
-	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/test.inp");
+	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/boat.inp");
 	auto& nodes = inpMesh.GetNodes();
+	auto& elements = inpMesh.GetElements();
 	auto& indices = inpMesh.GetIndexBuffer();
 
-	if (!GLCreateMesh(nodes.size(), indices.size(), GLMESH_32BIT, decl, &mesh))
+	if (!GLCreateMesh(indices.size(), indices.size(), GLMESH_32BIT, decl, &mesh))
 		return false;
 
 	OpenGLAttributeRange table[] = {
 		{ GLPT_TRIANGLELIST, 0, 0, indices.size(), 0, nodes.size(), true }
 	};
-	Math::Vector3* vdata = new Math::Vector3[nodes.size()];
+	CommonVertex* vdata = nullptr;
 	int* idata = new int[indices.size()];
 	GLuint numsubsets = 1;
 
@@ -82,11 +86,33 @@ bool InitScene()
 	{
 		// vertex data
 		{
-			for (int index = 0; index < nodes.size(); index++)
+// 			for (int index = 0; index < indices.size() / 3; index++)
+// 			{
+// 				std::vector<Element> eles{ *elements[index * 3].get(), *elements[index * 3 + 1].get(), *elements[index * 3 + 2].get() };
+// 
+// 			}
+			int vertexCount = 0;
+			for (auto& ele : elements)
 			{
-				vdata[index].x = nodes[index].get()->GetCoordinate()[0];
-				vdata[index].y = nodes[index].get()->GetCoordinate()[1];
-				vdata[index].z = nodes[index].get()->GetCoordinate()[2];
+				auto pFaces = ele->GetFaces();
+				std::vector<Face> faces{ *pFaces[0].get(), *pFaces[1].get(), *pFaces[2].get(), *pFaces[3].get() };
+				for (auto& face : faces)
+				{
+					auto pNodes = face.GetNodes();
+					std::vector<Node> nodes{ *pNodes[0].get(), *pNodes[1].get(), *pNodes[2].get() };
+					for (auto& node : nodes)
+					{
+						vdata[vertexCount].x = node.GetCoordinate()[0];
+						vdata[vertexCount].y = node.GetCoordinate()[1];
+						vdata[vertexCount].z = node.GetCoordinate()[2];
+
+						vdata[vertexCount].nx = face.GetNormal().x;
+						vdata[vertexCount].ny = face.GetNormal().y;
+						vdata[vertexCount].nz = face.GetNormal().z;
+
+						++vertexCount;
+					}
+				}
 			}
 		}
 
@@ -94,9 +120,10 @@ bool InitScene()
 		{
 			for (int index = 0; index < indices.size(); index++)
 			{
-				auto temp = indices[index];
-				temp = idata[index];
-				idata[index] = indices[index];
+// 				auto temp = indices[index];
+// 				temp = idata[index];
+// 				idata[index] = indices[index];
+				idata[index] = index;
 			}
 		}
 	}
@@ -113,7 +140,7 @@ bool InitScene()
 		std::cout << "Shader read finish!" << std::endl;
 	}
 
-	Math::Matrix identity(1, 1, 1, 1);
+	Math::Matrix identity(0, 1, 1, 1);
 
 	screenquad = new OpenGLScreenQuad();
 
@@ -154,7 +181,7 @@ void Render(float alpha, float elapsedtime)
 	Math::Matrix viewproj;
 	Math::Vector3 eye;
 	Math::Vector3 lightpos = { -1, 1, -1 };
-	Math::Color color = { 1, 1, 1, 1 };
+	Math::Color color = { 0, 1, 1, 1 };
 
 	camera.Animate(alpha);
 
