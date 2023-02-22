@@ -7,6 +7,8 @@ in vec3 wnorm;
 in vec3 vdir;
 in vec3 ldir;
 
+in vec4 pos;
+
 #ifdef HARDWARE_INSTANCING
 in vec4 instcolor;
 #endif
@@ -30,6 +32,7 @@ void main()
 	my_FragColor0.a = instcolor.a * matColor.a;
 #else
 	my_FragColor0.rgb = matColor.rgb * d + vec3(s);
+	// my_FragColor0.rgb = pos.xyz;
 	my_FragColor0.a = matColor.a;
 #endif
 }

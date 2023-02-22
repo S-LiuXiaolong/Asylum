@@ -22,6 +22,8 @@ out vec3 wnorm;
 out vec3 vdir;
 out vec3 ldir;
 
+out vec4 pos;
+
 #ifdef HARDWARE_INSTANCING
 out vec4 instcolor;
 #endif
@@ -44,4 +46,6 @@ void main()
 
 	wnorm = (world * vec4(my_Normal, 0.0)).xyz;
 	gl_Position = matViewProj * wpos;
+
+	pos = wpos;
 }

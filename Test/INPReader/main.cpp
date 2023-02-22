@@ -3,6 +3,7 @@
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "gdiplus.lib")
 
+#define NOMINMAX
 #include <iostream>
 
 #include "application.h"
@@ -65,7 +66,7 @@ bool InitScene()
 	};
 
 	// TODO: how to get the index count and index buffer?
-	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/boat.inp");
+	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simplest.inp");
 	auto& nodes = inpMesh.GetNodes();
 	auto& elements = inpMesh.GetElements();
 	auto& indices = inpMesh.GetIndexBuffer();
@@ -149,10 +150,11 @@ bool InitScene()
 	camera.SetAspect((float)screenwidth / screenheight);
 	camera.SetFov(Math::HALF_PI);
 	camera.SetClipPlanes(0.1f, 30.0f);
-	camera.SetDistance(1.7f);
-	camera.SetPosition(0, 0.5f, 0);
-	camera.SetOrientation(Math::DegreesToRadians(135), 0.45f, 0);
-	camera.SetPitchLimits(0.3f, Math::HALF_PI);
+	camera.SetDistance(2.0f);
+	camera.SetPosition(0, 0, 0);
+	// camera.SetOrientation(Math::DegreesToRadians(135), 0.45f, 0);
+	camera.SetOrientation(0, 0, 0);
+	camera.SetPitchLimits(-Math::HALF_PI, Math::HALF_PI);
 
 	return true;
 }
@@ -181,8 +183,8 @@ void Render(float alpha, float elapsedtime)
 	Math::Matrix world, view, proj;
 	Math::Matrix viewproj;
 	Math::Vector3 eye;
-	Math::Vector3 lightpos = { -1, 1, -1 };
-	Math::Color color = { 0, 1, 1, 1 };
+	Math::Vector3 lightpos = { 0, 1, 0 };
+	Math::Color color = { 1, 1, 1, 1 };
 
 	camera.Animate(alpha);
 
@@ -198,9 +200,22 @@ void Render(float alpha, float elapsedtime)
 	// object
 	Math::MatrixIdentity(world);
 
-// 	world._41 = eye.x;
-// 	world._42 = eye.y;
-// 	world._43 = eye.z;
+	// Center and scale model
+	Math::Vector3 AABBmax = inpMesh.GetAABBmax();
+	Math::Vector3 AABBmin = inpMesh.GetAABBmin();
+	Vector3 ModelDim = AABBmax - AABBmin;
+	float Scale = (1.0f / std::max(std::max(ModelDim.x, ModelDim.y), ModelDim.z)) * 2.0f;
+	Vector3 Translate = -(AABBmin + AABBmax) * 0.5;
+	// Translate = { 0,0,0 };
+	Matrix InvYAxis;
+	MatrixIdentity(InvYAxis);
+	InvYAxis._22 = -1;
+
+	Matrix ScaleMatrix;
+	Matrix TransMatrix;
+	MatrixScaling(ScaleMatrix, Scale, Scale, Scale);
+	MatrixTranslation(TransMatrix, Translate.x, Translate.y, Translate.z);
+	MatrixMultiply(world, TransMatrix, ScaleMatrix);
 
 	blinnphong->SetMatrix("matWorld", world);
 	blinnphong->SetMatrix("matViewProj", viewproj);

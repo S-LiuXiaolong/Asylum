@@ -293,6 +293,9 @@ protected:
 	std::vector<std::shared_ptr<Node>> nodes;
 	std::vector<std::shared_ptr<Element>> elements;
 
+	Vector3 bbmin{ FLT_MAX, FLT_MAX, FLT_MAX };
+	Vector3 bbmax{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
 	std::vector<int> indexbuffer;
 
 private:
@@ -341,6 +344,8 @@ public:
 	std::vector<std::shared_ptr<Node>> GetNodes() { return nodes; }
 	std::vector<std::shared_ptr<Element>> GetElements() { return elements; }
 	std::vector<int> GetIndexBuffer() { return indexbuffer; }
+	Vector3 GetAABBmin() { return bbmin; }
+	Vector3 GetAABBmax() { return bbmax; }
 
 	// TODO
 	void LoadFromFile(std::string inp_file_path)
@@ -458,6 +463,19 @@ public:
 		}
 
 		SetIndexBuffer();
+
+		for (auto& node : nodes)
+		{
+			for (int i = 0; i < 3; i++)
+			{
+				if ((node.get()->GetCoordinate())[i] > bbmax[i]) {
+					bbmax[i] = (node.get()->GetCoordinate())[i];
+				}
+				if ((node.get()->GetCoordinate())[i] < bbmin[i]) {
+					bbmin[i] = (node.get()->GetCoordinate())[i];
+				}
+			}
+		}
 	}
 
 };
