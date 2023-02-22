@@ -20,6 +20,7 @@ Application* app = nullptr;
 
 // OpenGLMesh* stlmesh = nullptr;
 OpenGLMesh* mesh = nullptr;
+OpenGLMesh* debugmesh = nullptr;
 INPMesh inpMesh;
 
 OpenGLEffect* blinnphong = nullptr;
