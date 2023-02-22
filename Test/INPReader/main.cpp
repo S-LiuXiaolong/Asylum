@@ -69,7 +69,7 @@ bool InitScene()
 		return false;
 
 	OpenGLAttributeRange table[] = {
-		{ GLPT_LINELIST, 0, 0, indices.size(), 0, nodes.size(), true }
+		{ GLPT_TRIANGLELIST, 0, 0, indices.size(), 0, nodes.size(), true }
 	};
 	Math::Vector3* vdata = new Math::Vector3[nodes.size()];
 	int* idata = new int[indices.size()];
@@ -108,6 +108,9 @@ bool InitScene()
 	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/blinnphong.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/blinnphong.frag", &blinnphong)) {
 		MYERROR("Could not load 'blinnphong' effect");
 		return false;
+	}
+	else {
+		std::cout << "Shader read finish!" << std::endl;
 	}
 
 	Math::Matrix identity(1, 1, 1, 1);
@@ -150,7 +153,7 @@ void Render(float alpha, float elapsedtime)
 	Math::Matrix world, view, proj;
 	Math::Matrix viewproj;
 	Math::Vector3 eye;
-	Math::Vector3 lightpos = { 6, 3, -10 };
+	Math::Vector3 lightpos = { -1, 1, -1 };
 	Math::Color color = { 1, 1, 1, 1 };
 
 	camera.Animate(alpha);
@@ -164,15 +167,12 @@ void Render(float alpha, float elapsedtime)
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// sky
-	Math::MatrixScaling(world, 20, 20, 20);
-
-	world._41 = eye.x;
-	world._42 = eye.y;
-	world._43 = eye.z;
-
 	// object
 	Math::MatrixIdentity(world);
+
+// 	world._41 = eye.x;
+// 	world._42 = eye.y;
+// 	world._43 = eye.z;
 
 	blinnphong->SetMatrix("matWorld", world);
 	blinnphong->SetMatrix("matViewProj", viewproj);
