@@ -59,6 +59,41 @@ double str2num(std::string s)
 	return negative ? -n : n; //负数返回-n 
 }
 
+class BitMap
+{
+public:
+	BitMap(size_t range)
+	{
+		//此时多开辟一个空间
+		_bits.resize(range / 32 + 1);
+	}
+	void Set(size_t x)
+	{
+		int index = x / 32;//确定哪个数据（区间）
+		int temp = x % 32;//确定哪个Bit位
+		_bits[index] |= (1 << temp);//位操作即可
+	}
+	void Unset(size_t x)
+	{
+		int index = x / 32;
+		int temp = x % 32;
+		_bits[index] &= (0 << temp);//取零
+	}
+	bool Test(size_t x)
+	{
+		int index = x / 32;
+		int temp = x % 32;
+		if (_bits[index] & (1 << temp))
+			return 1;
+		else
+			return 0;
+	}
+
+private:
+	std::vector<int> _bits;
+};
+
+
 class Node
 {
 protected:
@@ -361,6 +396,52 @@ public:
 		std::vector<std::shared_ptr<Face>> OuterFaces;
 		std::vector<isExistStruct> surfaceHash[10000];
 
+
+
+// 		std::cout << "loop 1 begin" << std::endl;
+// 		for (auto& ele : elements)
+// 		{
+// 			for (int i = 0; i < 4; i++)
+// 			{
+// 				std::shared_ptr<Face> face = ele->GetFaces()[i];
+// 				int* index = face->GetIndex();
+// 				std::sort(index, index + 3);
+// 				// XXH64_hash_t here on 64-bit machine is uint64_t
+// 				XXH64_hash_t hash = XXH64(index, 12, 0);
+// 				int division = hash / 10000000000000000;
+// 				size_t tail = hash % 10000000000000000;
+// 
+// 				if (hash < 10000000000)
+// 					std::cout << "small" << std::endl;
+// 
+// 				bool isExist = false;
+// 				for (auto& iter : surfaceHash[division])
+// 				{
+// 					if (tail == iter.hashvalue) {
+// 						isExist = true;
+// 						iter.flag = -1;
+// 						break;
+// 					}
+// 				}
+// 
+// 				if (!isExist) {
+// 					surfaceHash[division].push_back({ tail, 1, face });
+// 				}
+// 			}
+// 		}
+// 
+// 		std::cout << "loop 2 begin" << std::endl;
+// 		for (int i = 0; i < 10000; i++)
+// 		{
+// 			for (auto& iter : surfaceHash[i])
+// 			{
+// 				if (iter.flag == 1)
+// 				{
+// 					OuterFaces.push_back(iter.face);
+// 				}
+// 			}
+// 		}
+
 		std::cout << "loop 1 begin" << std::endl;
 		for (auto& ele : elements)
 		{
@@ -371,36 +452,42 @@ public:
 				std::sort(index, index + 3);
 				// XXH64_hash_t here on 64-bit machine is uint64_t
 				XXH64_hash_t hash = XXH64(index, 12, 0);
-				int division = hash / 10000000000000000;
-				size_t tail = hash % 10000000000000000;
+				size_t head = hash / 10000000000;
+				size_t tail = hash % 10000000000;
 
-				bool isExist = false;
-				for (auto& iter : surfaceHash[division])
+				if (surfaceBitmap1.Test(head) || surfaceBitmap1.Test(head) == 0)
 				{
-					if (tail == iter.hashvalue) {
-						isExist = true;
-						iter.flag = -1;
-						break;
-					}
+					surfaceBitmap1.Set(head);
+					surfaceBitmap2.Set(tail);
 				}
-
-				if (!isExist) {
-					surfaceHash[division].push_back({ tail, 1, face });
+				else if (surfaceBitmap1.Test(head) && surfaceBitmap1.Test(head) == 1)
+				{
+					surfaceBitmap1.Unset(head);
+					surfaceBitmap2.Unset(tail);
 				}
 			}
 		}
 
 		std::cout << "loop 2 begin" << std::endl;
-		for (int i = 0; i < 10000; i++)
+		for (auto& ele : elements)
 		{
-			for (auto& iter : surfaceHash[i])
+			for (int i = 0; i < 4; i++)
 			{
-				if (iter.flag == 1)
+				std::shared_ptr<Face> face = ele->GetFaces()[i];
+				int* index = face->GetIndex();
+				std::sort(index, index + 3);
+				// XXH64_hash_t here on 64-bit machine is uint64_t
+				XXH64_hash_t hash = XXH64(index, 12, 0);
+				size_t head = hash / 10000000000;
+				size_t tail = hash % 10000000000;
+
+				if (surfaceBitmap1.Test(head) && surfaceBitmap1.Test(head) == 1)
 				{
-					OuterFaces.push_back(iter.face);
+					OuterFaces.push_back(face);
 				}
 			}
 		}
+
 
 		return OuterFaces;
 	}
