@@ -8,6 +8,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 include_directories("${PROJECT_SOURCE_DIR}/Common/Application")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Camera")
 include_directories("${PROJECT_SOURCE_DIR}/Common/GeomMath")
+include_directories("${PROJECT_SOURCE_DIR}/Common/Hash")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Physics")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Utility")
 

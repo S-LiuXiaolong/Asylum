@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "3Dmath.h"
+#include "xxhash.h"
 
 using namespace Math;
 
@@ -289,6 +290,13 @@ public:
 
 class INPMesh
 {
+	struct isExistStruct
+	{
+		size_t hashvalue;
+		int flag = 0;
+		std::shared_ptr<Face> face;
+	};
+
 protected:
 	std::vector<std::shared_ptr<Node>> nodes;
 	std::vector<std::shared_ptr<Element>> elements;
@@ -346,6 +354,56 @@ public:
 	std::vector<int> GetIndexBuffer() { return indexbuffer; }
 	Vector3 GetAABBmin() { return bbmin; }
 	Vector3 GetAABBmax() { return bbmax; }
+
+	// std::vector<std::shared_ptr<Node>> GetOuterSurface()
+	std::vector<std::shared_ptr<Face>> GetOuterSurface()
+	{
+		std::vector<std::shared_ptr<Face>> OuterFaces;
+		std::vector<isExistStruct> surfaceHash[10000];
+
+		std::cout << "loop 1 begin" << std::endl;
+		for (auto& ele : elements)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				std::shared_ptr<Face> face = ele->GetFaces()[i];
+				int* index = face->GetIndex();
+				std::sort(index, index + 3);
+				// XXH64_hash_t here on 64-bit machine is uint64_t
+				XXH64_hash_t hash = XXH64(index, 12, 0);
+				int division = hash / 10000000000000000;
+				size_t tail = hash % 10000000000000000;
+
+				bool isExist = false;
+				for (auto& iter : surfaceHash[division])
+				{
+					if (tail == iter.hashvalue) {
+						isExist = true;
+						iter.flag = -1;
+						break;
+					}
+				}
+
+				if (!isExist) {
+					surfaceHash[division].push_back({ tail, 1, face });
+				}
+			}
+		}
+
+		std::cout << "loop 2 begin" << std::endl;
+		for (int i = 0; i < 10000; i++)
+		{
+			for (auto& iter : surfaceHash[i])
+			{
+				if (iter.flag == 1)
+				{
+					OuterFaces.push_back(iter.face);
+				}
+			}
+		}
+
+		return OuterFaces;
+	}
 
 	// TODO
 	void LoadFromFile(std::string inp_file_path)
@@ -462,7 +520,7 @@ public:
 			}
 		}
 
-		SetIndexBuffer();
+		// SetIndexBuffer();
 
 		for (auto& node : nodes)
 		{

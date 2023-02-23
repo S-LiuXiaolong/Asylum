@@ -66,41 +66,120 @@ bool InitScene()
 	};
 
 	// TODO: how to get the index count and index buffer?
-	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simplest.inp");
-	auto& nodes = inpMesh.GetNodes();
-	auto& elements = inpMesh.GetElements();
-	auto& indices = inpMesh.GetIndexBuffer();
+	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/t13_simple.inp");
 
-	if (!GLCreateMesh(indices.size(), indices.size(), GLMESH_32BIT, decl, &mesh))
-		return false;
-
-	OpenGLAttributeRange table[] = {
-		{ GLPT_TRIANGLELIST, 0, 0, indices.size(), 0, nodes.size(), true }
-	};
-	CommonVertex* vdata = nullptr;
-	int* idata = new int[indices.size()];
-	GLuint numsubsets = 1;
-
-	// TODO: remember to subtract with 1 when putting index into indexbuffer
-	// (index of INP node start with 1 and OpenGL indexbuffer start with 0)
-	mesh->LockVertexBuffer(0, 0, GLLOCK_DISCARD, (void**)&vdata);
-	mesh->LockIndexBuffer(0, 0, GLLOCK_DISCARD, (void**)&idata);
+	// -----------------------Without surface extraction-----------------------
 	{
-		// vertex data
-		{
-// 			for (int index = 0; index < indices.size() / 3; index++)
-// 			{
-// 				std::vector<Element> eles{ *elements[index * 3].get(), *elements[index * 3 + 1].get(), *elements[index * 3 + 2].get() };
+// 		auto& nodes = inpMesh.GetNodes();
+// 		auto& elements = inpMesh.GetElements();
+// 		auto& indices = inpMesh.GetIndexBuffer();
+// 		if (!GLCreateMesh(indices.size(), indices.size(), GLMESH_32BIT, decl, &mesh))
+// 			return false;
 // 
+// 		OpenGLAttributeRange table[] = {
+// 			{ GLPT_TRIANGLELIST, 0, 0, indices.size(), 0, indices.size(), true }
+// 		};
+// 		CommonVertex* vdata = nullptr;
+// 		int* idata = new int[indices.size()];
+// 		GLuint numsubsets = 1;
+// 
+// 		// TODO: remember to subtract with 1 when putting index into indexbuffer
+// 		// (index of INP node start with 1 and OpenGL indexbuffer start with 0)
+// 		mesh->LockVertexBuffer(0, 0, GLLOCK_DISCARD, (void**)&vdata);
+// 		mesh->LockIndexBuffer(0, 0, GLLOCK_DISCARD, (void**)&idata);
+// 		{
+// 			// vertex data
+// 			{
+// 				int vertexCount = 0;
+// 				for (auto& ele : elements)
+// 				{
+// 					auto pFaces = ele->GetFaces();
+// 					std::vector<Face> faces{ *pFaces[0].get(), *pFaces[1].get(), *pFaces[2].get(), *pFaces[3].get() };
+// 					for (auto& face : faces)
+// 					{
+// 						auto pNodes = face.GetNodes();
+// 						std::vector<Node> nodes{ *pNodes[0].get(), *pNodes[1].get(), *pNodes[2].get() };
+// 						for (auto& node : nodes)
+// 						{
+// 							vdata[vertexCount].x = node.GetCoordinate()[0];
+// 							vdata[vertexCount].y = node.GetCoordinate()[1];
+// 							vdata[vertexCount].z = node.GetCoordinate()[2];
+// 
+// 							vdata[vertexCount].nx = face.GetNormal().x;
+// 							vdata[vertexCount].ny = face.GetNormal().y;
+// 							vdata[vertexCount].nz = face.GetNormal().z;
+// 
+// 							++vertexCount;
+// 						}
+// 					}
+// 				}
 // 			}
-			int vertexCount = 0;
-			for (auto& ele : elements)
+// 
+// 			// index data
+// 			{
+// 				for (int index = 0; index < indices.size(); index++)
+// 				{
+// 					idata[index] = index;
+// 				}
+// 			}
+// 		}
+// 		mesh->UnlockIndexBuffer();
+// 		mesh->UnlockVertexBuffer();
+// 
+// 		mesh->SetAttributeTable(table, numsubsets); 
+	}
+	// -----------------------Without surface extraction-----------------------
+
+	// -----------------------With surface extraction-----------------------
+	{
+		std::cout << "Now begin to get outer surface..." << std::endl;
+		std::vector<std::shared_ptr<Face>> faces = inpMesh.GetOuterSurface();
+		std::cout << "Outer surface get!" << std::endl;
+		int indexSize = faces.size() * 3;
+
+		if (!GLCreateMesh(indexSize, indexSize, GLMESH_32BIT, decl, &mesh))
+			return false;
+
+		OpenGLAttributeRange table[] = {
+			{ GLPT_TRIANGLELIST, 0, 0, indexSize, 0, indexSize, true }
+		};
+		CommonVertex* vdata = nullptr;
+		int* idata = new int[indexSize];
+		GLuint numsubsets = 1;
+
+		// TODO: remember to subtract with 1 when putting index into indexbuffer
+		// (index of INP node start with 1 and OpenGL indexbuffer start with 0)
+		mesh->LockVertexBuffer(0, 0, GLLOCK_DISCARD, (void**)&vdata);
+		mesh->LockIndexBuffer(0, 0, GLLOCK_DISCARD, (void**)&idata);
+		{
+			// vertex data
 			{
-				auto pFaces = ele->GetFaces();
-				std::vector<Face> faces{ *pFaces[0].get(), *pFaces[1].get(), *pFaces[2].get(), *pFaces[3].get() };
+				int vertexCount = 0;
+// 				for (auto& ele : elements)
+// 				{
+// 					auto pFaces = ele->GetFaces();
+// 					std::vector<Face> faces{ *pFaces[0].get(), *pFaces[1].get(), *pFaces[2].get(), *pFaces[3].get() };
+// 					for (auto& face : faces)
+// 					{
+// 						auto pNodes = face.GetNodes();
+// 						std::vector<Node> nodes{ *pNodes[0].get(), *pNodes[1].get(), *pNodes[2].get() };
+// 						for (auto& node : nodes)
+// 						{
+// 							vdata[vertexCount].x = node.GetCoordinate()[0];
+// 							vdata[vertexCount].y = node.GetCoordinate()[1];
+// 							vdata[vertexCount].z = node.GetCoordinate()[2];
+// 
+// 							vdata[vertexCount].nx = face.GetNormal().x;
+// 							vdata[vertexCount].ny = face.GetNormal().y;
+// 							vdata[vertexCount].nz = face.GetNormal().z;
+// 
+// 							++vertexCount;
+// 						}
+// 					}
+// 				}
 				for (auto& face : faces)
 				{
-					auto pNodes = face.GetNodes();
+					auto pNodes = face->GetNodes();
 					std::vector<Node> nodes{ *pNodes[0].get(), *pNodes[1].get(), *pNodes[2].get() };
 					for (auto& node : nodes)
 					{
@@ -108,31 +187,30 @@ bool InitScene()
 						vdata[vertexCount].y = node.GetCoordinate()[1];
 						vdata[vertexCount].z = node.GetCoordinate()[2];
 
-						vdata[vertexCount].nx = face.GetNormal().x;
-						vdata[vertexCount].ny = face.GetNormal().y;
-						vdata[vertexCount].nz = face.GetNormal().z;
+						vdata[vertexCount].nx = face->GetNormal().x;
+						vdata[vertexCount].ny = face->GetNormal().y;
+						vdata[vertexCount].nz = face->GetNormal().z;
 
 						++vertexCount;
 					}
 				}
 			}
-		}
 
-		// index data
-		{
-			for (int index = 0; index < indices.size(); index++)
+			// index data
 			{
-// 				auto temp = indices[index];
-// 				temp = idata[index];
-// 				idata[index] = indices[index];
-				idata[index] = index;
+				for (int index = 0; index < indexSize; index++)
+				{
+					idata[index] = index;
+				}
 			}
 		}
-	}
-	mesh->UnlockIndexBuffer();
-	mesh->UnlockVertexBuffer();
+		mesh->UnlockIndexBuffer();
+		mesh->UnlockVertexBuffer();
 
-	mesh->SetAttributeTable(table, numsubsets);
+		mesh->SetAttributeTable(table, numsubsets);
+	}
+	// -----------------------With surface extraction-----------------------
+
 
 	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/blinnphong.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/blinnphong.frag", &blinnphong)) {
 		MYERROR("Could not load 'blinnphong' effect");
