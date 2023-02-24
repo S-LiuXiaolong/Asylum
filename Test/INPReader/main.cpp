@@ -66,7 +66,7 @@ bool InitScene()
 	};
 
 	// TODO: how to get the index count and index buffer?
-	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/test.inp");
+	inpMesh.LoadFromFile("../../../Asset/Mesh/INP/boat_big.inp");
 
 	// -----------------------Without surface extraction-----------------------
 	{

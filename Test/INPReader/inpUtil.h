@@ -3,6 +3,7 @@
 #include <iostream>
 #include <streambuf>
 #include <vector>
+#include <unordered_map>
 
 #include "3Dmath.h"
 #include "xxhash.h"
@@ -327,7 +328,7 @@ class INPMesh
 {
 	struct isExistStruct
 	{
-		size_t hashvalue;
+		uint64_t hashvalue;
 		int flag = 0;
 		std::shared_ptr<Face> face;
 	};
@@ -394,100 +395,37 @@ public:
 	std::vector<std::shared_ptr<Face>> GetOuterSurface()
 	{
 		std::vector<std::shared_ptr<Face>> OuterFaces;
-		std::vector<isExistStruct> surfaceHash[10000];
-
-
-
-// 		std::cout << "loop 1 begin" << std::endl;
-// 		for (auto& ele : elements)
-// 		{
-// 			for (int i = 0; i < 4; i++)
-// 			{
-// 				std::shared_ptr<Face> face = ele->GetFaces()[i];
-// 				int* index = face->GetIndex();
-// 				std::sort(index, index + 3);
-// 				// XXH64_hash_t here on 64-bit machine is uint64_t
-// 				XXH64_hash_t hash = XXH64(index, 12, 0);
-// 				int division = hash / 10000000000000000;
-// 				size_t tail = hash % 10000000000000000;
-// 
-// 				if (hash < 10000000000)
-// 					std::cout << "small" << std::endl;
-// 
-// 				bool isExist = false;
-// 				for (auto& iter : surfaceHash[division])
-// 				{
-// 					if (tail == iter.hashvalue) {
-// 						isExist = true;
-// 						iter.flag = -1;
-// 						break;
-// 					}
-// 				}
-// 
-// 				if (!isExist) {
-// 					surfaceHash[division].push_back({ tail, 1, face });
-// 				}
-// 			}
-// 		}
-// 
-// 		std::cout << "loop 2 begin" << std::endl;
-// 		for (int i = 0; i < 10000; i++)
-// 		{
-// 			for (auto& iter : surfaceHash[i])
-// 			{
-// 				if (iter.flag == 1)
-// 				{
-// 					OuterFaces.push_back(iter.face);
-// 				}
-// 			}
-// 		}
+		std::unordered_map<uint64_t, isExistStruct> surfaceHash;
 
 		std::cout << "loop 1 begin" << std::endl;
 		for (auto& ele : elements)
 		{
 			for (int i = 0; i < 4; i++)
 			{
-				std::shared_ptr<Face> face = ele->GetFaces()[i];
-				int* index = face->GetIndex();
-				std::sort(index, index + 3);
-				// XXH64_hash_t here on 64-bit machine is uint64_t
-				XXH64_hash_t hash = XXH64(index, 12, 0);
-				size_t head = hash / 10000000000;
-				size_t tail = hash % 10000000000;
+		 		std::shared_ptr<Face> face = ele->GetFaces()[i];
+		 		int* index = face->GetIndex();
+		 		std::sort(index, index + 3);
+		 		// XXH64_hash_t here on 64-bit machine is uint64_t
+		 		XXH64_hash_t hashValue = XXH64(index, 12, 0);
 
-				if (surfaceBitmap1.Test(head) || surfaceBitmap1.Test(head) == 0)
-				{
-					surfaceBitmap1.Set(head);
-					surfaceBitmap2.Set(tail);
+		 		bool isExist = false;
+				if (surfaceHash.find(hashValue) == surfaceHash.end()) {
+					surfaceHash[hashValue] = { hashValue, 1, face };
 				}
-				else if (surfaceBitmap1.Test(head) && surfaceBitmap1.Test(head) == 1)
-				{
-					surfaceBitmap1.Unset(head);
-					surfaceBitmap2.Unset(tail);
+				else {
+					surfaceHash[hashValue].flag = -1;
 				}
 			}
 		}
 
 		std::cout << "loop 2 begin" << std::endl;
-		for (auto& ele : elements)
+		for (auto& iter = surfaceHash.begin(); iter != surfaceHash.end(); iter++)
 		{
-			for (int i = 0; i < 4; i++)
+			if (iter->second.flag == 1)
 			{
-				std::shared_ptr<Face> face = ele->GetFaces()[i];
-				int* index = face->GetIndex();
-				std::sort(index, index + 3);
-				// XXH64_hash_t here on 64-bit machine is uint64_t
-				XXH64_hash_t hash = XXH64(index, 12, 0);
-				size_t head = hash / 10000000000;
-				size_t tail = hash % 10000000000;
-
-				if (surfaceBitmap1.Test(head) && surfaceBitmap1.Test(head) == 1)
-				{
-					OuterFaces.push_back(face);
-				}
+				OuterFaces.push_back(iter->second.face);
 			}
 		}
-
 
 		return OuterFaces;
 	}
@@ -558,9 +496,6 @@ public:
 						}
 					}
 				}
-				// 					else if (readStr[currentpos + 1] != ' ') {
-				// 						std::cout << "Now support only .inp file with at least one space ahead of every line.";
-				// 					}
 				else {
 					currentpos = elestart;
 					std::cout << "Node content read finish" << std::endl;
@@ -607,7 +542,8 @@ public:
 			}
 		}
 
-		// SetIndexBuffer();
+		// Open if need to draw without surface extraction
+//		SetIndexBuffer();
 
 		for (auto& node : nodes)
 		{
