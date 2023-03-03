@@ -341,7 +341,7 @@ void OpenGLMesh::RecreateVertexLayout()
 				break;
 
 			case GLDECLUSAGE_COLOR:
-				glVertexAttribPointer(elem.Usage, 4, GL_UNSIGNED_BYTE, GL_TRUE, vertexdecl.Stride, (const GLvoid*)elem.Offset);
+				glVertexAttribPointer(elem.Usage, 4, GL_FLOAT, GL_TRUE, vertexdecl.Stride, (const GLvoid*)elem.Offset);
 				break;
 
 			case GLDECLUSAGE_NORMAL:

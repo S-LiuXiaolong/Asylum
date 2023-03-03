@@ -12,7 +12,8 @@ include_directories("${PROJECT_SOURCE_DIR}/Common/Hash")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Physics")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Utility")
 
-include_directories("${PROJECT_SOURCE_DIR}/include/OpenGL")
+include_directories("${PROJECT_SOURCE_DIR}/External/Include")
+include_directories("${PROJECT_SOURCE_DIR}/External/Include/OpenGL")
 
 IF(${WIN32})
     add_definitions(/D _CRT_SECURE_NO_WARNINGS)
