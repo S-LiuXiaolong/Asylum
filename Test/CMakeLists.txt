@@ -1,4 +1,5 @@
 add_subdirectory(Bitmap)
+add_subdirectory(glNURBS)
 add_subdirectory(INPReader)
 add_subdirectory(INPUtilTest)
 add_subdirectory(Instancing)
