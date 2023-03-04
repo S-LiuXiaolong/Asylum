@@ -37,12 +37,6 @@ bool use_debug = false;
 
 typedef GeometryUtils::CommonVertex CommonVertex;
 
-// int screen_width=800, screen_height=600;
-// GLuint vbo_teapot_vertices, vbo_teapot_colors, ibo_teapot_elements,
-//   vbo_teapot_cp_vertices, vbo_teapot_cp_colors, ibo_teapot_cp_elements;
-// GLuint program;
-// GLint attribute_coord3d, attribute_v_color;
-// GLint uniform_mvp;
 struct vertex { GLfloat x, y, z; };
 struct vertex teapot_cp_vertices[] = {
 	// 1
@@ -391,8 +385,8 @@ GLuint teapot_patches[][ORDER + 1][ORDER + 1] = {
 // 	{ {  31,  41,  42 }, {  34,  43,  44 }, {  37,  45,  46 } }
 // };
 
-#define RESU 2
-#define RESV 2
+#define RESU 10
+#define RESV 10
 struct vertex teapot_vertices[TEAPOT_NB_PATCHES * RESU * RESV];
 GLfloat teapot_colors[TEAPOT_NB_PATCHES * RESU * RESV * 3];
 GLuint teapot_elements[TEAPOT_NB_PATCHES * (RESU - 1) * (RESV - 1) * 2 * 3];
