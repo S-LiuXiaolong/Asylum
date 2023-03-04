@@ -1,3 +1,4 @@
+add_subdirectory(BinReadTest)
 add_subdirectory(Bitmap)
 add_subdirectory(glNURBS)
 add_subdirectory(INPReader)

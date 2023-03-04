@@ -391,8 +391,8 @@ GLuint teapot_patches[][ORDER + 1][ORDER + 1] = {
 // 	{ {  31,  41,  42 }, {  34,  43,  44 }, {  37,  45,  46 } }
 // };
 
-#define RESU 10
-#define RESV 10
+#define RESU 2
+#define RESV 2
 struct vertex teapot_vertices[TEAPOT_NB_PATCHES * RESU * RESV];
 GLfloat teapot_colors[TEAPOT_NB_PATCHES * RESU * RESV * 3];
 GLuint teapot_elements[TEAPOT_NB_PATCHES * (RESU - 1) * (RESV - 1) * 2 * 3];
