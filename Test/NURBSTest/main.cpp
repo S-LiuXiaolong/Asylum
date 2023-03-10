@@ -94,15 +94,19 @@ int					numSegBetweenKnotsV = 1;
 // int					currentcurve		= 0;
 bool				wireframe			= false;
 
-void Tessellate(int count, int currentcurve);
+void Tessellate(std::vector<std::vector<uint32_t>> faceindex);
 
 #define DEGREE 2
 
 struct vertex { GLfloat x, y, z; };
 std::vector<vertex> mesh_cp_vertices;
+uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
+float weightx[4] = { 1,1,1,1 };
+float weighty[5] = { 1,1,1,1,1 };
+float weightz[6] = { 1,1,1,1,1,1 };
 
 void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
@@ -122,6 +126,7 @@ void build_mesh()
 
 	std::vector<uint32_t> buffer_nels;
 	read_uint32t("../../../Asset/nels.bin", buffer_nels);
+	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	std::vector<float> buffer_knots;
@@ -230,11 +235,56 @@ bool InitScene()
 
 	screenquad = new OpenGLScreenQuad();
 
-	// tessellate for the first time
-	for (int i = 0; i < 3; i++)
+	std::vector<std::vector<std::vector<uint32_t>>> facesIndex;
+	std::vector<std::vector<uint32_t>> face1, face2, face3, face4, face5, face6;
+	
+	face1 = chan[0];
+	facesIndex.push_back(face1);
+	face2 = chan[numCptx - 1];
+	facesIndex.push_back(face2);
+	for (int i = 0; i < numCptx; i++)
 	{
+		std::vector<uint32_t> onerow = chan[i][0];
+		face3.push_back(onerow);
+	}
+	facesIndex.push_back(face3);
+
+	for (int i = 0; i < numCptx; i++)
+	{
+		std::vector<uint32_t> onerow = chan[i][numCptz - 1];
+		face4.push_back(onerow);
+	}
+	facesIndex.push_back(face4);
+
+	for (int i = 0; i < numCptx; i++)
+	{
+		std::vector<uint32_t> onecolumn;
+		for (int j = 0; j < numCptz; j++)
+		{
+			onecolumn.push_back(chan[i][j][0]);
+		}
+		face5.push_back(onecolumn);
+	}
+	facesIndex.push_back(face5);
+
+	for (int i = 0; i < numCptx; i++)
+	{
+		std::vector<uint32_t> onecolumn;
+		for (int j = 0; j < numCptz; j++)
+		{
+			onecolumn.push_back(chan[i][j][numCpty - 1]);
+		}
+		face6.push_back(onecolumn);
+	}
+	facesIndex.push_back(face6);
+
+
+	// tessellate for the first time
+	for (int i = 0; i < 6; i++)
+	{
+
 		// Tessellate(int index, int currentCurve);
-		Tessellate(i, i);
+		Tessellate(facesIndex[i]);
 	}
 	// Tessellate();
 
@@ -350,12 +400,127 @@ void UninitScene()
 // 	surfacegroup.push_back(surface);
 // }
 
-void Tessellate(int count, int currentcurve)
-{
-	auto& faceindex = chan[0];
+// void Tessellate(int count, int currentcurve)
+// {
+// 	auto& faceindex = chan[0];
+// 
+// 	OpenGLMesh* surface = nullptr;
+// 	OpenGLEffect* tessellatesurfacemy = nullptr;
+// 
+// 	OpenGLVertexElement decl2[] = {
+// 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
+// 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
+// 		{ 0xff, 0, 0, 0, 0 }
+// 	};
+// 
+// 	// create surface
+// 	if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl2, &surface)) {
+// 		MYERROR("Could not create surface");
+// 		return;
+// 	}
+// 
+// 	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
+// 		MYERROR("Could not load compute shader");
+// 		return;
+// 	}
+// 
+// 	// CurveData& current = curves[currentcurve];
+// 
+// 	// update surface cvs
+// 	Math::Vector4* surfacecvs = new Math::Vector4[6 * 5];
+// 	GLuint index;
+// 
+// 	for (GLuint i = 0; i < 6; ++i) {
+// 		for (GLuint j = 0; j < 5; ++j) {
+// 			index = i * 5 + j;
+// 
+// 			surfacecvs[index][0] = mesh_cp_vertices[faceindex[i][j] - 1].x;
+// 			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
+// 			surfacecvs[index][1] = mesh_cp_vertices[faceindex[i][j] - 1].y;
+// 		}
+// 	}
+// 
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
+// 
+// 	// 	if (current.degree > 1) {
+// 	// 		tessellatesurfacemy->SetInt("numVerticesU", numsegments + 1);
+// 	// 		tessellatesurfacemy->SetInt("numVerticesV", numsegments + 1);
+// 	// 	} else {
+// 	// 		tessellatesurfacemy->SetInt("numVerticesU", NumControlVertices);
+// 	// 		tessellatesurfacemy->SetInt("numVerticesV", NumControlVertices);
+// 	// 	}
+// 
+// // 	if (current.degree > 1) {
+// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+// // 	}
+// // 	else {
+// // 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
+// // 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
+// // 	}
+// 
+// 	tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+// 	tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+// 
+// 
+// 	tessellatesurfacemy->SetInt("numControlPointsU", 6);
+// 	tessellatesurfacemy->SetInt("numControlPointsV", 5);
+// 	tessellatesurfacemy->SetInt("degreeU", 2);
+// 	tessellatesurfacemy->SetInt("degreeV", 2);
+// 	tessellatesurfacemy->SetFloatArray("knotsU", &knotz[0], 6 + 2 + 1);
+// 	tessellatesurfacemy->SetFloatArray("knotsV", &knoty[0], 5 + 2 + 1);
+// 	tessellatesurfacemy->SetFloatArray("weightsU", weightz, 6);
+// 	tessellatesurfacemy->SetFloatArray("weightsV", weighty, 5);
+// 	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], 6 * 5);
+// 
+// 	tessellatesurfacemy->Begin();
+// 	{
+// 		glDispatchCompute(1, 1, 1);
+// 	}
+// 	tessellatesurfacemy->End();
+// 
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+// 
+// 	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
+// 
+// 	int numSegmentsU = numSegBetweenKnotsU * (6 - 2);
+// 	int numSegmentsV = numSegBetweenKnotsV * (5 - 2);
+// // 	if (current.degree > 1) {
+// // 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
+// // 	}
+// // 	else {
+// // 		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
+// // 	}
+// 	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
+// 
+// 	delete[] surfacecvs;
+// 
+// 	surfacegroup.push_back(surface);
+// }
 
+void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
+{
 	OpenGLMesh* surface = nullptr;
 	OpenGLEffect* tessellatesurfacemy = nullptr;
+
+	float* weight1 = nullptr;
+	float* weight2 = nullptr;
+
+	if (faceindex.size() == numCptx)
+		weight1 = weightx;
+	else if(faceindex.size() == numCpty)
+		weight1 = weighty;
+	else if (faceindex.size() == numCptz)
+		weight1 = weightz;
+
+	if (faceindex[0].size() == numCptx)
+		weight2 = weightx;
+	else if (faceindex[0].size() == numCpty)
+		weight2 = weighty;
+	else if (faceindex[0].size() == numCptz)
+		weight2 = weightz;
 
 	OpenGLVertexElement decl2[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
@@ -374,15 +539,15 @@ void Tessellate(int count, int currentcurve)
 		return;
 	}
 
-	CurveData& current = curves[currentcurve];
+	// CurveData& current = curves[currentcurve];
 
 	// update surface cvs
-	Math::Vector4* surfacecvs = new Math::Vector4[6 * 5];
+	Math::Vector4* surfacecvs = new Math::Vector4[faceindex.size() * faceindex[0].size()];
 	GLuint index;
 
-	for (GLuint i = 0; i < 6; ++i) {
-		for (GLuint j = 0; j < 5; ++j) {
-			index = i * 5 + j;
+	for (GLuint i = 0; i < faceindex.size(); ++i) {
+		for (GLuint j = 0; j < faceindex[0].size(); ++j) {
+			index = i * faceindex[0].size() + j;
 
 			surfacecvs[index][0] = mesh_cp_vertices[faceindex[i][j] - 1].x;
 			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
@@ -401,27 +566,28 @@ void Tessellate(int count, int currentcurve)
 	// 		tessellatesurfacemy->SetInt("numVerticesV", NumControlVertices);
 	// 	}
 
-	if (current.degree > 1) {
-		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-	}
-	else {
-		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
-		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
-	}
+// 	if (current.degree > 1) {
+// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+// 	}
+// 	else {
+// 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
+// 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
+// 	}
 
-	float weight1[6] = { 1,1,1,1,1,1 };
-	float weight2[5] = { 1,1,1,1,1 };
+	tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+	tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
 
-	tessellatesurfacemy->SetInt("numControlPointsU", 6);
+
+	tessellatesurfacemy->SetInt("numControlPointsU", faceindex.size());
 	tessellatesurfacemy->SetInt("numControlPointsV", 5);
 	tessellatesurfacemy->SetInt("degreeU", 2);
 	tessellatesurfacemy->SetInt("degreeV", 2);
-	tessellatesurfacemy->SetFloatArray("knotsU", &knotz[0], 6 + 2 + 1);
-	tessellatesurfacemy->SetFloatArray("knotsV", &knoty[0], 5 + 2 + 1);
-	tessellatesurfacemy->SetFloatArray("weightsU", weight1, 6);
-	tessellatesurfacemy->SetFloatArray("weightsV", weight2, 5);
-	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], 6 * 5);
+	tessellatesurfacemy->SetFloatArray("knotsU", &knotz[0], faceindex.size() + 2 + 1);
+	tessellatesurfacemy->SetFloatArray("knotsV", &knoty[0], faceindex[0].size() + 2 + 1);
+	tessellatesurfacemy->SetFloatArray("weightsU", weight1, faceindex.size());
+	tessellatesurfacemy->SetFloatArray("weightsV", weight2, faceindex[0].size());
+	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], faceindex.size() * faceindex[0].size());
 
 	tessellatesurfacemy->Begin();
 	{
@@ -434,19 +600,21 @@ void Tessellate(int count, int currentcurve)
 
 	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
 
-	int numSegmentsU = numSegBetweenKnotsU * (6 - 2);
-	int numSegmentsV = numSegBetweenKnotsV * (5 - 2);
-	if (current.degree > 1) {
-		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-	}
-	else {
-		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
-	}
+	int numSegmentsU = numSegBetweenKnotsU * (faceindex.size() - 2);
+	int numSegmentsV = numSegBetweenKnotsV * (faceindex[0].size() - 2);
+	// 	if (current.degree > 1) {
+	// 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
+	// 	}
+	// 	else {
+	// 		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
+	// 	}
+	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * faceindex.size();
 
 	delete[] surfacecvs;
 
 	surfacegroup.push_back(surface);
 }
+
 
 void KeyUp(KeyCode key)
 {
@@ -555,7 +723,7 @@ void Render(float alpha, float elapsedtime)
 	rendersurface->Begin();
 	{
 		// surface->DrawSubset(0);
-		for (int i = 0; i < 3; i++)
+		for (int i = 0; i < 6; i++)
 		{
 			surfacegroup[i]->DrawSubset(0);
 		}
