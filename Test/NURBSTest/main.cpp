@@ -104,9 +104,9 @@ uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
-float weightx[4] = { 1,1,1,1 };
-float weighty[5] = { 1,1,1,1,1 };
-float weightz[6] = { 1,1,1,1,1,1 };
+std::vector<float> weightx;
+std::vector<float> weighty;
+std::vector<float> weightz;
 
 void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
@@ -128,6 +128,20 @@ void build_mesh()
 	read_uint32t("../../../Asset/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
+	// TODO: weight is hardcoded as 1
+	weightx.resize(numCptx);
+	for (int i = 0; i < numCptx; i++) {
+		weightx[i] = 1;
+	}
+	weighty.resize(numCpty);
+	for (int i = 0; i < numCpty; i++) {
+		weighty[i] = 1;
+	}
+	weightz.resize(numCptz);
+	for (int i = 0; i < numCptz; i++) {
+		weightz[i] = 1;
+	}
+
 
 	std::vector<float> buffer_knots;
 	read_float("../../../Asset/knots.bin", buffer_knots);
@@ -507,20 +521,34 @@ void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
 
 	float* weight1 = nullptr;
 	float* weight2 = nullptr;
+	std::vector<float> knot1;
+	std::vector<float> knot2;
 
-	if (faceindex.size() == numCptx)
-		weight1 = weightx;
-	else if(faceindex.size() == numCpty)
-		weight1 = weighty;
-	else if (faceindex.size() == numCptz)
-		weight1 = weightz;
+	if (faceindex.size() == numCptx) {
+		weight1 = &weightx[0];
+		knot1 = knotx;
+	}
+	else if (faceindex.size() == numCpty) {
+		weight1 = &weighty[0];
+		knot1 = knoty;
+	}
+	else if (faceindex.size() == numCptz) {
+		weight1 = &weightz[0];
+		knot1 = knotz;
+	}
 
-	if (faceindex[0].size() == numCptx)
-		weight2 = weightx;
-	else if (faceindex[0].size() == numCpty)
-		weight2 = weighty;
-	else if (faceindex[0].size() == numCptz)
-		weight2 = weightz;
+	if (faceindex[0].size() == numCptx) {
+		weight2 = &weightx[0];
+		knot2 = knotx;
+	}
+	else if (faceindex[0].size() == numCpty) {
+		weight2 = &weighty[0];
+		knot2 = knoty;
+	}
+	else if (faceindex[0].size() == numCptz) {
+		weight2 = &weightz[0];
+		knot2 = knotz;
+	}
 
 	OpenGLVertexElement decl2[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
@@ -550,8 +578,9 @@ void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
 			index = i * faceindex[0].size() + j;
 
 			surfacecvs[index][0] = mesh_cp_vertices[faceindex[i][j] - 1].x;
-			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
 			surfacecvs[index][1] = mesh_cp_vertices[faceindex[i][j] - 1].y;
+			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
+			std::cout << mesh_cp_vertices[faceindex[i][j] - 1].x << mesh_cp_vertices[faceindex[i][j] - 1].y << mesh_cp_vertices[faceindex[i][j] - 1].z << std::endl;
 		}
 	}
 
@@ -580,11 +609,11 @@ void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
 
 
 	tessellatesurfacemy->SetInt("numControlPointsU", faceindex.size());
-	tessellatesurfacemy->SetInt("numControlPointsV", 5);
+	tessellatesurfacemy->SetInt("numControlPointsV", faceindex[0].size());
 	tessellatesurfacemy->SetInt("degreeU", 2);
 	tessellatesurfacemy->SetInt("degreeV", 2);
-	tessellatesurfacemy->SetFloatArray("knotsU", &knotz[0], faceindex.size() + 2 + 1);
-	tessellatesurfacemy->SetFloatArray("knotsV", &knoty[0], faceindex[0].size() + 2 + 1);
+	tessellatesurfacemy->SetFloatArray("knotsU", &knot1[0], faceindex.size() + 2 + 1);
+	tessellatesurfacemy->SetFloatArray("knotsV", &knot2[0], faceindex[0].size() + 2 + 1);
 	tessellatesurfacemy->SetFloatArray("weightsU", weight1, faceindex.size());
 	tessellatesurfacemy->SetFloatArray("weightsV", weight2, faceindex[0].size());
 	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], faceindex.size() * faceindex[0].size());
@@ -600,17 +629,19 @@ void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
 
 	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
 
-	int numSegmentsU = numSegBetweenKnotsU * (faceindex.size() - 2);
-	int numSegmentsV = numSegBetweenKnotsV * (faceindex[0].size() - 2);
+	int numSegmentsU = numSegBetweenKnotsU * (faceindex.size() - 1);
+	int numSegmentsV = numSegBetweenKnotsV * (faceindex[0].size() - 1);
 	// 	if (current.degree > 1) {
 	// 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
 	// 	}
 	// 	else {
 	// 		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
 	// 	}
-	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * faceindex.size();
+	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
 
 	delete[] surfacecvs;
+
+	delete tessellatesurfacemy;
 
 	surfacegroup.push_back(surface);
 }
