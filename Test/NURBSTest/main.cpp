@@ -71,9 +71,6 @@ uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
-// std::vector<float> weightx;
-// std::vector<float> weighty;
-// std::vector<float> weightz;
 
 // TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float>& buffer);
@@ -339,8 +336,9 @@ void Tessellate()
 			return;
 		}
 
-		// update surface cvs
+		// update surface cvs and weights (STL 2D vector will cause fault)
 		Math::Vector4* surfacecvs = new Math::Vector4[numCptU * numCptV];
+		float* surfacewts = new float[numCptU * numCptV];
 		GLuint index;
 
 		for (GLuint m = 0; m < numCptU; ++m) {
@@ -350,6 +348,7 @@ void Tessellate()
 				surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[m][n] - 1].y;
 				surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[m][n] - 1].z;
 				// std::cout << mesh_cp_vertices[cptsIndex[m][n] - 1].x << mesh_cp_vertices[cptsIndex[m][n] - 1].y << mesh_cp_vertices[cptsIndex[m][n] - 1].z << std::endl;
+				surfacewts[index] = weights[m][n];
 			}
 		}
 
@@ -364,12 +363,12 @@ void Tessellate()
 		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
 		tessellatesurfacemy->SetInt("degreeU", DEGREE);
 		tessellatesurfacemy->SetInt("degreeV", DEGREE);
-		tessellatesurfacemy->SetFloatArray("knotsu", &knotU[0], numCptU + DEGREE + 1);
-		tessellatesurfacemy->SetFloatArray("knotsv", &knotV[0], numCptV + DEGREE + 1);
+		tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
+		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
 		// FIXME: weight should be passed into compute shader in the same way as controlPoints.
 		// tessellatesurfacemy->SetFloatArray("weightsu", weight1, numCptU);
 		// tessellatesurfacemy->SetFloatArray("weightsv", weight2, numCptV);
-		tessellatesurfacemy->SetFloatArray("weights", &weights[0][0], numCptU * numCptV);
+		tessellatesurfacemy->SetFloatArray("weights", &surfacewts[0], numCptU * numCptV);
 		tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], numCptU * numCptV);
 
 		tessellatesurfacemy->Begin();
