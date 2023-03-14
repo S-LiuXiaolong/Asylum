@@ -7,9 +7,9 @@
 #define BLOCK_SIZE	16
 #define MAX_DEGREE	3
 #define MAX_ORDER	4
-#define MAX_CVS		100
-#define MAX_KNOTS	104
-#define MAX_SPANS	103
+#define MAX_CVS		50
+#define MAX_KNOTS	54
+#define MAX_SPANS	53
 
 struct Vertex
 {
@@ -31,7 +31,7 @@ layout (std430, binding = 1) buffer IndexBuffer {
 } surfaceindices;
 
 // TODO: Hard code here will cause fault.
-uniform vec4 controlPoints[200];
+uniform vec4 controlPoints[50];
 uniform float knotsU[MAX_KNOTS];
 uniform float knotsV[MAX_KNOTS];
 uniform float weightsU[MAX_CVS];

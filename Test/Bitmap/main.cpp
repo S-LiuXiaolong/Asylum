@@ -51,4 +51,6 @@ int main()
 {
     TestBitMap();
     return 0;
+    int a[3] = { 0,2,1 };
+    int b[3] = { 1,1,1 };
 }
