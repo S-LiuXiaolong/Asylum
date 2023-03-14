@@ -34,8 +34,9 @@ layout (std430, binding = 1) buffer IndexBuffer {
 uniform vec4 controlPoints[50];
 uniform float knotsU[MAX_KNOTS];
 uniform float knotsV[MAX_KNOTS];
-uniform float weightsU[MAX_CVS];
-uniform float weightsV[MAX_CVS];
+// uniform float weightsU[MAX_CVS];
+// uniform float weightsV[MAX_CVS];
+uniform float weights[50];
 
 // uniform int numVerticesU;
 // uniform int numVerticesV;
@@ -257,7 +258,8 @@ void main()
 							cpV = (spanV - l) % numControlPointsV;
 
 							cf = controlPoints[cpU * numControlPointsV + cpV];
-							weight = weightsU[cpU] * weightsV[cpV];
+							// FIXME: Here the weight should have the same size and index with the controlPts
+							weight = weights[cpU * numControlPointsV + cpV];
 
 							c = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], polyV) * weight;
 							cdU = dot(CoeffsU[index1], dUpoly) * dot(CoeffsV[index2], polyV) * weight;

@@ -12,14 +12,15 @@
 #include "gl4ext.h"
 #include "basiccamera.h"
 
-#define MAX_NUM_SEGMENTS	100
-
 // helper macros
 #define TITLE				"NURBS tessellation"
 #define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
 
+#define DEGREE 2
+
 // FIXME: Delete
 // control constants
+#define MAX_NUM_SEGMENTS 100
 const GLuint NumControlVertices				= 7;
 const GLuint NumControlIndices				= (NumControlVertices - 1) * 2;
 const GLuint MaxSplineVertices				= MAX_NUM_SEGMENTS + 1;
@@ -28,57 +29,25 @@ const GLuint MaxSurfaceVertices				= MaxSplineVertices * MaxSplineVertices;
 const GLuint MaxSurfaceIndices				= (MaxSplineVertices - 1) * (MaxSplineVertices - 1) * 6;
 
 // FIXME: Add a more flexible way to define a CurveData but not hardcode.
-// sample structures
-struct CurveData
+// // sample structures
+// struct CurveData
+// {
+// 	int degree;	// max 3
+// 	Math::Vector4 controlpoints[NumControlVertices];
+// 	float weights[NumControlVertices + 4];
+// 	float knots[11];
+// };
+
+// TODO: A SurfaceData may be useful? CurveData is useless in my situation.
+// TODO: Maybe put the surface and whole-mesh class into another file?
+struct NURBSSurfaceData
 {
-	int degree;	// max 3
-	Math::Vector4 controlpoints[NumControlVertices];
-	float weights[NumControlVertices + 4];
-	float knots[11];
+	std::vector<std::vector<uint32_t>> cptsIndex;
+	std::vector<std::vector<float>> weights;
+	std::vector<float> knotU, knotV;
 };
 
-CurveData curves[] =
-{
-	// degree 3, "good"
-	{
-		3,
-		{ { 1, 1, 0, 1 }, { 1, 5, 0, 1 }, { 3, 6, 0, 1 }, { 6, 3, 0, 1 }, { 9, 4, 0, 1 }, { 9, 9, 0, 1 }, { 5, 6, 0, 1 } },
-		{ 1, 1, 1, 1, 1, 1, 1 },
-		{ 0, 0, 0, 0, 0.4f, 0.4f, 0.4f, 1, 1, 1, 1 }
-	},
-
-	// degree 3, "bad"
-	{
-		3,
-		{ { 1, 1, 0, 1 }, { 1, 5, 0, 1 }, { 3, 6, 0, 1 }, { 6, 3, 0, 1 }, { 9, 4, 0, 1 }, { 9, 9, 0, 1 }, { 5, 6, 0, 1 } },
-		{ 1, 1, 1, 1, 1, 1, 1 },
-		{ 0, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1 }
-	},
-
-	// degree 2, "good"
-	{
-		2,
-		{ { 1, 1, 0, 1 }, { 1, 5, 0, 1 }, { 3, 6, 0, 1 }, { 6, 3, 0, 1 }, { 9, 4, 0, 1 }, { 9, 9, 0, 1 }, { 5, 6, 0, 1 } },
-		{ 1, 1, 1, 1, 1, 1, 1 },
-		{ 0, 0, 0, 0.2f, 0.4f, 0.6f, 0.8f, 1, 1, 1 }
-	},
-
-	// degree 1
-	{
-		1,
-		{ { 1, 1, 0, 1 }, { 1, 5, 0, 1 }, { 3, 6, 0, 1 }, { 6, 3, 0, 1 }, { 9, 4, 0, 1 }, { 9, 9, 0, 1 }, { 5, 6, 0, 1 } },
-		{ 1, 1, 1, 1, 1, 1, 1 },
-		{ 0, 0, 0.15f, 0.3f, 0.45f, 0.6f, 0.75f, 1, 1 }
-	},
-
-	// circle
-	{
-		2,
-		{ { 5, 1, 0, 1 }, { 1, 1, 0, 1 }, { 3, 4.46f, 0, 1 }, { 5, 7.92f, 0, 1 }, { 7, 4.46f, 0, 1 }, { 9, 1, 0, 1 }, { 5, 1, 0, 1 }, },
-		{ 1, 0.5f, 1, 0.5f, 1, 0.5f, 1 },
-		{ 0, 0, 0, 0.33f, 0.33f, 0.67f, 0.67f, 1, 1, 1 }
-	},
-};
+NURBSSurfaceData mesh_surfaces[6];
 
 // sample variables
 Application*		app					= nullptr;
@@ -90,31 +59,93 @@ std::vector<OpenGLMesh*>		surfacegroup;
 BasicCamera			camera;
 float				selectiondx			= 0;
 float				selectiondy			= 0;
-// int					numsegments			= MAX_NUM_SEGMENTS / 2;
-int					numSegBetweenKnotsU = 5;
-int					numSegBetweenKnotsV = 5;
-// int					currentcurve		= 0;
+int					numSegBetweenKnotsU = 2;
+int					numSegBetweenKnotsV = 2;
 bool				wireframe			= false;
 
-void Tessellate(std::vector<std::vector<uint32_t>> faceindex);
+void Tessellate();
 
-#define DEGREE 2
-
-struct vertex { GLfloat x, y, z; };
-std::vector<vertex> mesh_cp_vertices;
+std::vector<Math::Vector3> mesh_cp_vertices;
+std::vector<float> mesh_cp_weights;
 uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
-std::vector<float> weightx;
-std::vector<float> weighty;
-std::vector<float> weightz;
+// std::vector<float> weightx;
+// std::vector<float> weighty;
+// std::vector<float> weightz;
 
+// TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
+void build_surface()
+{
+	std::vector<std::vector<uint32_t>> faceIndices[6];
+	
+	faceIndices[0] = chan[0];
+	faceIndices[1] = chan[numCptx - 1];
+	
+	for (int i = 0; i < numCptx; i++)
+	{
+		std::vector<uint32_t> onerow1 = chan[i][0];
+		faceIndices[2].push_back(onerow1);
+
+		std::vector<uint32_t> onerow2 = chan[i][numCptz - 1];
+		faceIndices[3].push_back(onerow2);
+
+		std::vector<uint32_t> onecolumn1;
+		for (int j = 0; j < numCptz; j++)
+		{
+			onecolumn1.push_back(chan[i][j][0]);
+		}
+		faceIndices[4].push_back(onecolumn1);
+
+		std::vector<uint32_t> onecolumn2;
+		for (int j = 0; j < numCptz; j++)
+		{
+			onecolumn2.push_back(chan[i][j][numCpty - 1]);
+		}
+		faceIndices[5].push_back(onecolumn2);
+	}
+
+	for (int i = 0; i < 6; i++)
+	{
+		auto& faceIndex = faceIndices[i];
+		int numCptsU = faceIndex.size(); int numCptsV = faceIndex[0].size();
+		std::vector<std::vector<Math::Vector3>> cpts(numCptsU, std::vector<Math::Vector3>(numCptsV, { 0,0,0 }));
+		std::vector<std::vector<float>> wts(numCptsU, std::vector<float>(numCptsV, 0));
+
+		for (int axisU = 0; axisU < numCptsU; axisU++)
+		{
+			for (int axisV = 0; axisV < numCptsV; axisV++)
+			{
+				// Here we do not pass cpts pos into surfaceData to avoid rebuild surface when moving control points.
+				// cpts[axisU][axisV] = mesh_cp_vertices[faceIndex[axisU][axisV] - 1];
+				wts[axisU][axisV] = mesh_cp_weights[faceIndex[axisU][axisV] - 1];
+			}
+		}
+
+		std::vector<float> knotu, knotv;
+		switch (i) {
+		case 0: 
+		case 1: 
+			knotu = knotz; knotv = knoty; break;
+		case 2:
+		case 3:
+			knotu = knotx; knotv = knoty; break;
+		case 4:
+		case 5:
+			knotu = knotx; knotv = knotz; break;
+		}
+		
+		mesh_surfaces[i] = { faceIndex, wts, knotu, knotv };
+	}
+}
+
 void build_mesh()
 {
+	// Get all coords of points.
 	std::vector<float> buffer_cpts;
 	read_float("../../../Asset/controlPts.bin", buffer_cpts);
 
@@ -125,41 +156,35 @@ void build_mesh()
 		mesh_cp_vertices[i] = { buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2] };
 		// printf("%f %f %f\n", buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2]);
 	}
-	// for debug
-	mesh_cp_vertices[10].z -= 1.0f;
+	// For testing deformation
+	// mesh_cp_vertices[10].z -= 1.0f;
 	// mesh_cp_vertices[19].z -= 0.5f;
 	// mesh_cp_vertices[19].x += 0.5f;
 
-
+	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
 	read_uint32t("../../../Asset/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// FIXME: SHITCODE. Weight is hardcoded as 1.
-	weightx.resize(numCptx);
-	for (int i = 0; i < numCptx; i++) {
-		weightx[i] = 1;
-	}
-	weighty.resize(numCpty);
-	for (int i = 0; i < numCpty; i++) {
-		weighty[i] = 1;
-	}
-	weightz.resize(numCptz);
-	for (int i = 0; i < numCptz; i++) {
-		weightz[i] = 1;
-	}
+	// Get all weights(same size as the controlPts) from binary file.
+	read_float("../../../Asset/weights.bin", mesh_cp_weights);
 
-
+	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
 	read_float("../../../Asset/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	// FIXME: SHITCODE. Please write in a more clear way.
-	knotx.assign(buffer_knots.begin(), buffer_knots.begin() + numCptx + 2 + 1);
-	knoty.assign(buffer_knots.begin() + rowLength, buffer_knots.begin() + rowLength + numCpty + 2 + 1);
-	knotz.assign(buffer_knots.begin() + rowLength * 2, buffer_knots.begin() + rowLength * 2 + numCptz + 2 + 1);
+	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
+	auto knotyBegin = buffer_knots.begin() + rowLength; auto knotyEnd = buffer_knots.begin() + rowLength + numCpty + 2 + 1;
+	auto knotzBegin = buffer_knots.begin() + rowLength * 2; auto knotzEnd = buffer_knots.begin() + rowLength * 2 + numCptz + 2 + 1;
+	knotx.assign(knotxBegin, knotxEnd);
+	knoty.assign(knotyBegin, knotyEnd);
+	knotz.assign(knotzBegin, knotzEnd);
 
+	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
 	read_uint32t("../../../Asset/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
@@ -176,6 +201,8 @@ void build_mesh()
 		}
 		chan.push_back(face);
 	}
+
+	build_surface();
 }
 
 void read_float(std::string strFile, std::vector<float>& buffer)
@@ -256,59 +283,8 @@ bool InitScene()
 
 	screenquad = new OpenGLScreenQuad();
 
-	// FIXME: SHITCODE. Absolutely shitcode. faceIndex may need to be put into global.
-	std::vector<std::vector<std::vector<uint32_t>>> facesIndex;
-	std::vector<std::vector<uint32_t>> face1, face2, face3, face4, face5, face6;
-	
-	face1 = chan[0];
-	facesIndex.push_back(face1);
-	face2 = chan[numCptx - 1];
-	facesIndex.push_back(face2);
-	for (int i = 0; i < numCptx; i++)
-	{
-		std::vector<uint32_t> onerow = chan[i][0];
-		face3.push_back(onerow);
-	}
-	facesIndex.push_back(face3);
-
-	for (int i = 0; i < numCptx; i++)
-	{
-		std::vector<uint32_t> onerow = chan[i][numCptz - 1];
-		face4.push_back(onerow);
-	}
-	facesIndex.push_back(face4);
-
-	for (int i = 0; i < numCptx; i++)
-	{
-		std::vector<uint32_t> onecolumn;
-		for (int j = 0; j < numCptz; j++)
-		{
-			onecolumn.push_back(chan[i][j][0]);
-		}
-		face5.push_back(onecolumn);
-	}
-	facesIndex.push_back(face5);
-
-	for (int i = 0; i < numCptx; i++)
-	{
-		std::vector<uint32_t> onecolumn;
-		for (int j = 0; j < numCptz; j++)
-		{
-			onecolumn.push_back(chan[i][j][numCpty - 1]);
-		}
-		face6.push_back(onecolumn);
-	}
-	facesIndex.push_back(face6);
-
-
 	// tessellate for the first time
-	for (int i = 0; i < 6; i++)
-	{
-
-		// Tessellate(int index, int currentCurve);
-		Tessellate(facesIndex[i]);
-	}
-	// Tessellate();
+	Tessellate();
 
 	// setup camera
 	camera.SetAspect((float)screenwidth / screenheight);
@@ -329,341 +305,106 @@ void UninitScene()
 	OpenGLContentManager().Release();
 }
 
-// void Tessellate()
-// void Tessellate(int count, int currentcurve)
-// {
-// 	OpenGLMesh* surface = nullptr;
-// 	OpenGLEffect* tessellatesurfacemy = nullptr;
-// 
-// 	OpenGLVertexElement decl2[] = {
-// 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
-// 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
-// 		{ 0xff, 0, 0, 0, 0 }
-// 	};
-// 
-// 	// create surface
-// 	if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl2, &surface)) {
-// 		MYERROR("Could not create surface");
-// 		return ;
-// 	}
-// 
-// 	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
-// 		MYERROR("Could not load compute shader");
-// 		return ;
-// 	}
-// 
-// 	CurveData& current = curves[currentcurve];
-// 
-// 	// update surface cvs
-// 	Math::Vector4* surfacecvs = new Math::Vector4[NumControlVertices * NumControlVertices];
-// 	GLuint index;
-// 
-// 	for (GLuint i = 0; i < NumControlVertices; ++i) {
-// 		for (GLuint j = 0; j < NumControlVertices; ++j) {
-// 			index = i * NumControlVertices + j;
-// 
-// 			surfacecvs[index][0] = current.controlpoints[i][0];
-// 			surfacecvs[index][2] = current.controlpoints[j][0];
-// 			surfacecvs[index][1] = (current.controlpoints[i][1] + current.controlpoints[j][1]) * 0.5f;
-// 		}
-// 	}
-// 
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
-// 
-// // 	if (current.degree > 1) {
-// // 		tessellatesurfacemy->SetInt("numVerticesU", numsegments + 1);
-// // 		tessellatesurfacemy->SetInt("numVerticesV", numsegments + 1);
-// // 	} else {
-// // 		tessellatesurfacemy->SetInt("numVerticesU", NumControlVertices);
-// // 		tessellatesurfacemy->SetInt("numVerticesV", NumControlVertices);
-// // 	}
-// 
-// 	if (current.degree > 1) {
-// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-// 	} else {
-// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
-// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
-// 	}
-// 
-// 
-// 	tessellatesurfacemy->SetInt("numControlPointsU", NumControlVertices);
-// 	tessellatesurfacemy->SetInt("numControlPointsV", NumControlVertices);
-// 	tessellatesurfacemy->SetInt("degreeU", current.degree);
-// 	tessellatesurfacemy->SetInt("degreeV", current.degree);
-// 	tessellatesurfacemy->SetFloatArray("knotsU", current.knots, NumControlVertices + current.degree + 1);
-// 	tessellatesurfacemy->SetFloatArray("knotsV", current.knots, NumControlVertices + current.degree + 1);
-// 	tessellatesurfacemy->SetFloatArray("weightsU", current.weights, NumControlVertices);
-// 	tessellatesurfacemy->SetFloatArray("weightsV", current.weights, NumControlVertices);
-// 	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], NumControlVertices * NumControlVertices);
-// 
-// 	tessellatesurfacemy->Begin();
-// 	{
-// 		glDispatchCompute(1, 1, 1);
-// 	}
-// 	tessellatesurfacemy->End();
-// 
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-// 
-// 	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT|GL_ELEMENT_ARRAY_BARRIER_BIT);
-// 
-// 	int numSegmentsU = numSegBetweenKnotsU * (NumControlVertices - current.degree);
-// 	int numSegmentsV = numSegBetweenKnotsV * (NumControlVertices - current.degree);
-// 	if (current.degree > 1) {
-// 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-// 	} else {
-// //		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
-// 	}
-// 
-// 	delete[] surfacecvs;
-// 
-// 	surfacegroup.push_back(surface);
-// }
-
-// void Tessellate(int count, int currentcurve)
-// {
-// 	auto& faceindex = chan[0];
-// 
-// 	OpenGLMesh* surface = nullptr;
-// 	OpenGLEffect* tessellatesurfacemy = nullptr;
-// 
-// 	OpenGLVertexElement decl2[] = {
-// 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
-// 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
-// 		{ 0xff, 0, 0, 0, 0 }
-// 	};
-// 
-// 	// create surface
-// 	if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl2, &surface)) {
-// 		MYERROR("Could not create surface");
-// 		return;
-// 	}
-// 
-// 	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
-// 		MYERROR("Could not load compute shader");
-// 		return;
-// 	}
-// 
-// 	// CurveData& current = curves[currentcurve];
-// 
-// 	// update surface cvs
-// 	Math::Vector4* surfacecvs = new Math::Vector4[6 * 5];
-// 	GLuint index;
-// 
-// 	for (GLuint i = 0; i < 6; ++i) {
-// 		for (GLuint j = 0; j < 5; ++j) {
-// 			index = i * 5 + j;
-// 
-// 			surfacecvs[index][0] = mesh_cp_vertices[faceindex[i][j] - 1].x;
-// 			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
-// 			surfacecvs[index][1] = mesh_cp_vertices[faceindex[i][j] - 1].y;
-// 		}
-// 	}
-// 
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
-// 
-// 	// 	if (current.degree > 1) {
-// 	// 		tessellatesurfacemy->SetInt("numVerticesU", numsegments + 1);
-// 	// 		tessellatesurfacemy->SetInt("numVerticesV", numsegments + 1);
-// 	// 	} else {
-// 	// 		tessellatesurfacemy->SetInt("numVerticesU", NumControlVertices);
-// 	// 		tessellatesurfacemy->SetInt("numVerticesV", NumControlVertices);
-// 	// 	}
-// 
-// // 	if (current.degree > 1) {
-// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-// // 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-// // 	}
-// // 	else {
-// // 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
-// // 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
-// // 	}
-// 
-// 	tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-// 	tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-// 
-// 
-// 	tessellatesurfacemy->SetInt("numControlPointsU", 6);
-// 	tessellatesurfacemy->SetInt("numControlPointsV", 5);
-// 	tessellatesurfacemy->SetInt("degreeU", 2);
-// 	tessellatesurfacemy->SetInt("degreeV", 2);
-// 	tessellatesurfacemy->SetFloatArray("knotsU", &knotz[0], 6 + 2 + 1);
-// 	tessellatesurfacemy->SetFloatArray("knotsV", &knoty[0], 5 + 2 + 1);
-// 	tessellatesurfacemy->SetFloatArray("weightsU", weightz, 6);
-// 	tessellatesurfacemy->SetFloatArray("weightsV", weighty, 5);
-// 	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], 6 * 5);
-// 
-// 	tessellatesurfacemy->Begin();
-// 	{
-// 		glDispatchCompute(1, 1, 1);
-// 	}
-// 	tessellatesurfacemy->End();
-// 
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-// 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-// 
-// 	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
-// 
-// 	int numSegmentsU = numSegBetweenKnotsU * (6 - 2);
-// 	int numSegmentsV = numSegBetweenKnotsV * (5 - 2);
-// // 	if (current.degree > 1) {
-// // 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-// // 	}
-// // 	else {
-// // 		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
-// // 	}
-// 	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-// 
-// 	delete[] surfacecvs;
-// 
-// 	surfacegroup.push_back(surface);
-// }
-
-void Tessellate(std::vector<std::vector<uint32_t>> faceindex)
+void Tessellate()
 {
-	OpenGLMesh* surface = nullptr;
-	OpenGLEffect* tessellatesurfacemy = nullptr;
-
-	// FIXME: SHITCODE.
-	float* weight1 = nullptr;
-	float* weight2 = nullptr;
-	std::vector<float> knot1;
-	std::vector<float> knot2;
-
-	if (faceindex.size() == numCptx) {
-		weight1 = &weightx[0];
-		knot1 = knotx;
-	}
-	else if (faceindex.size() == numCpty) {
-		weight1 = &weighty[0];
-		knot1 = knoty;
-	}
-	else if (faceindex.size() == numCptz) {
-		weight1 = &weightz[0];
-		knot1 = knotz;
-	}
-
-	if (faceindex[0].size() == numCptx) {
-		weight2 = &weightx[0];
-		knot2 = knotx;
-	}
-	else if (faceindex[0].size() == numCpty) {
-		weight2 = &weighty[0];
-		knot2 = knoty;
-	}
-	else if (faceindex[0].size() == numCptz) {
-		weight2 = &weightz[0];
-		knot2 = knotz;
-	}
-
-	OpenGLVertexElement decl2[] = {
+	OpenGLVertexElement decl[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
 		{ 0xff, 0, 0, 0, 0 }
 	};
 
-	// create surface
-	if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl2, &surface)) {
-		MYERROR("Could not create surface");
-		return;
-	}
-
-	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
-		MYERROR("Could not load compute shader");
-		return;
-	}
-
-	// CurveData& current = curves[currentcurve];
-
-	// update surface cvs
-	Math::Vector4* surfacecvs = new Math::Vector4[faceindex.size() * faceindex[0].size()];
-	GLuint index;
-
-	for (GLuint i = 0; i < faceindex.size(); ++i) {
-		for (GLuint j = 0; j < faceindex[0].size(); ++j) {
-			index = i * faceindex[0].size() + j;
-			surfacecvs[index][0] = mesh_cp_vertices[faceindex[i][j] - 1].x;
-			surfacecvs[index][1] = mesh_cp_vertices[faceindex[i][j] - 1].y;
-			surfacecvs[index][2] = mesh_cp_vertices[faceindex[i][j] - 1].z;
-			// std::cout << mesh_cp_vertices[faceindex[i][j] - 1].x << mesh_cp_vertices[faceindex[i][j] - 1].y << mesh_cp_vertices[faceindex[i][j] - 1].z << std::endl;
-		}
-	}
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
-
-// 	if (current.degree > 1) {
-// 		tessellatesurfacemy->SetInt("numVerticesU", numsegments + 1);
-// 		tessellatesurfacemy->SetInt("numVerticesV", numsegments + 1);
-// 	} else {
-// 		tessellatesurfacemy->SetInt("numVerticesU", NumControlVertices);
-// 		tessellatesurfacemy->SetInt("numVerticesV", NumControlVertices);
-// 	}
-
-// 	if (current.degree > 1) {
-// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-// 	}
-// 	else {
-// 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", NumControlVertices);
-// 		// 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", NumControlVertices);
-// 	}
-
-	tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-	tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-
-	// FIXME: SHITCODE. Please put these variables in a manner way.
-	tessellatesurfacemy->SetInt("numControlPointsU", faceindex.size());
-	tessellatesurfacemy->SetInt("numControlPointsV", faceindex[0].size());
-	tessellatesurfacemy->SetInt("degreeU", 2);
-	tessellatesurfacemy->SetInt("degreeV", 2);
-	tessellatesurfacemy->SetFloatArray("knotsU", &knot1[0], faceindex.size() + 2 + 1);
-	tessellatesurfacemy->SetFloatArray("knotsV", &knot2[0], faceindex[0].size() + 2 + 1);
-	tessellatesurfacemy->SetFloatArray("weightsU", weight1, faceindex.size());
-	tessellatesurfacemy->SetFloatArray("weightsV", weight2, faceindex[0].size());
-	tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], faceindex.size() * faceindex[0].size());
-
-	tessellatesurfacemy->Begin();
+	for(int i = 0; i < 6; i++)
 	{
-		glDispatchCompute(1, 1, 1);
+		NURBSSurfaceData surfData = mesh_surfaces[i];
+		auto& cptsIndex = surfData.cptsIndex;
+		auto& weights = surfData.weights;
+		auto& knotU = surfData.knotU;
+		auto& knotV = surfData.knotV;
+
+		int numCptU = cptsIndex.size();
+		int numCptV = cptsIndex[0].size();
+
+		OpenGLMesh* surface = nullptr;
+		OpenGLEffect* tessellatesurfacemy = nullptr;
+
+		// create surface
+		// FIXME: How to get MaxSurfaceVertices and Indices?
+		if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
+			MYERROR("Could not create surface");
+			return;
+		}
+
+		if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
+			MYERROR("Could not load compute shader");
+			return;
+		}
+
+		// update surface cvs
+		Math::Vector4* surfacecvs = new Math::Vector4[numCptU * numCptV];
+		GLuint index;
+
+		for (GLuint m = 0; m < numCptU; ++m) {
+			for (GLuint n = 0; n < numCptV; ++n) {
+				index = m * numCptV + n;
+				surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[m][n] - 1].x;
+				surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[m][n] - 1].y;
+				surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[m][n] - 1].z;
+				// std::cout << mesh_cp_vertices[cptsIndex[m][n] - 1].x << mesh_cp_vertices[cptsIndex[m][n] - 1].y << mesh_cp_vertices[cptsIndex[m][n] - 1].z << std::endl;
+			}
+		}
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
+
+		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+
+		// FIXME: SHITCODE. Please put these variables in a manner way.
+		tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
+		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
+		tessellatesurfacemy->SetInt("degreeU", DEGREE);
+		tessellatesurfacemy->SetInt("degreeV", DEGREE);
+		tessellatesurfacemy->SetFloatArray("knotsu", &knotU[0], numCptU + DEGREE + 1);
+		tessellatesurfacemy->SetFloatArray("knotsv", &knotV[0], numCptV + DEGREE + 1);
+		// FIXME: weight should be passed into compute shader in the same way as controlPoints.
+		// tessellatesurfacemy->SetFloatArray("weightsu", weight1, numCptU);
+		// tessellatesurfacemy->SetFloatArray("weightsv", weight2, numCptV);
+		tessellatesurfacemy->SetFloatArray("weights", &weights[0][0], numCptU * numCptV);
+		tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], numCptU * numCptV);
+
+		tessellatesurfacemy->Begin();
+		{
+			glDispatchCompute(1, 1, 1);
+		}
+		tessellatesurfacemy->End();
+
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+
+		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
+
+		int numSegmentsU = numSegBetweenKnotsU * (numCptU - DEGREE);
+		int numSegmentsV = numSegBetweenKnotsV * (numCptV - DEGREE);
+
+		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
+
+		delete[] surfacecvs;
+
+		delete tessellatesurfacemy;
+
+		surfacegroup.push_back(surface);
 	}
-	tessellatesurfacemy->End();
 
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-
-	glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
-
-	int numSegmentsU = numSegBetweenKnotsU * (faceindex.size() - 1);
-	int numSegmentsV = numSegBetweenKnotsV * (faceindex[0].size() - 1);
-
-// 	if (current.degree > 1) {
-// 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-// 	}
-// 	else {
-// 		//		surface->GetAttributeTable()->IndexCount = (NumControlVertices - 1) * (NumControlVertices - 1) * 6;
-// 	}
-
-	surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
-
-	delete[] surfacecvs;
-
-	delete tessellatesurfacemy;
-
-	surfacegroup.push_back(surface);
 }
 
 
 void KeyUp(KeyCode key)
 {
-	for (int i = 0; i < ARRAY_SIZE(curves); ++i) {
-		if (key == KeyCode1 + i) {
-			// Tessellate();
-		}
-	}
+	// for (int i = 0; i < ARRAY_SIZE(curves); ++i) {
+	// 	if (key == KeyCode1 + i) {
+	// 		// Tessellate();
+	// 	}
+	// }
 
 	switch (key) {
 
