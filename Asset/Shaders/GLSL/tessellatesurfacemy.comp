@@ -119,7 +119,7 @@ float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
 	return Blossom[(e * MAX_ORDER + degree) * MAX_ORDER];
 }
 
-layout (local_size_x = 1, local_size_y = 1) in;
+layout (local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
 void main()
 {
 	vec4 cf;
@@ -139,11 +139,15 @@ void main()
 	if (gl_LocalInvocationIndex == 0)
 	{
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanU = degreeU; spanU < numControlPointsU ; ++spanU) {
-			for (int k = 0; k <= min(degreeU, spanU); ++k) {
+		// FIXME
+		for (int spanU = degreeU; spanU < numControlPointsU ; ++spanU)
+		{
+			for (int k = 0; k <= min(degreeU, spanU); ++k)
+			{
 				index1 = spanU * MAX_ORDER + k;
 
-				if (spanU - k < numControlPointsU) {
+				if (spanU - k < numControlPointsU)
+				{
 					cpU = spanU - k;
 
 					cf.x = CalculateCoeff(cpU, degreeU, 0, spanU, knotsU); // 1
@@ -159,11 +163,15 @@ void main()
 		}
 
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanV = degreeU; spanV < numControlPointsV; ++spanV) {
-			for (int k = 0; k <= min(degreeV, spanV); ++k) {
+		// FIXME
+		for (int spanV = degreeV; spanV < numControlPointsV; ++spanV)
+		{
+			for (int k = 0; k <= min(degreeV, spanV); ++k)
+			{
 				index2 = spanV * MAX_ORDER + k;
 
-				if (spanV - k < numControlPointsV) {
+				if (spanV - k < numControlPointsV)
+				{
 					cpV = spanV - k;
 
 					cf.x = CalculateCoeff(cpV, degreeV, 0, spanV, knotsV); // 1
@@ -210,7 +218,8 @@ void main()
 	int numSegmentsU = numSegBetweenKnotsU * (numControlPointsU - degreeU);
 	int numSegmentsV = numSegBetweenKnotsV * (numControlPointsV - degreeV);
 
-	for (int i = 0; i < numControlPointsU - degreeU; i++)
+
+	int i = int(gl_WorkGroupID.x);
 	{
 		float firstU = knotsU[degreeU + i];
 		float nextU = knotsU[degreeU + i + 1];
@@ -227,7 +236,7 @@ void main()
 					break;
 			}
 
-			for (int m = 0; m < numControlPointsV - degreeV; m++)
+			int m = int(gl_WorkGroupID.y);
 			{
 				float firstV = knotsV[degreeV + m];
 				float lastV = knotsV[degreeV + m + 1];
@@ -296,11 +305,11 @@ void main()
 	}
 
 	// STEP 3: fill index buffer
-	for (int i = 0; i < numControlPointsU - degreeU; i++)
+	// int i = int(gl_WorkGroupID.x);
 	{
 		for(int j = 0; j < numSegBetweenKnotsU; j++)
 		{
-			for (int m = 0; m < numControlPointsV - degreeV; m++)
+			int m = int(gl_WorkGroupID.y);
 			{
 				for(int n = 0; n < numSegBetweenKnotsV; n++)
 				{
@@ -312,7 +321,7 @@ void main()
 
 					surfaceindices.data[index1].Indices[3] = (i * numVtsBetweenKnotsU + j) * numVerticesV + m * numVtsBetweenKnotsV + n;
 					surfaceindices.data[index1].Indices[4] = (i * numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n + 1;
-					surfaceindices.data[index1].Indices[5] = (i * numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n;
+					surfaceindices.data[index1].Indices[5] = (i* numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n;
 				}
 			}
 		}

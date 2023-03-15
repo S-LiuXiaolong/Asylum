@@ -50,8 +50,8 @@ std::vector<OpenGLMesh*>		surfacegroup;
 BasicCamera			camera;
 float				selectiondx			= 0;
 float				selectiondy			= 0;
-int					numSegBetweenKnotsU = 1;
-int					numSegBetweenKnotsV = 1;
+int					numSegBetweenKnotsU = 5;
+int					numSegBetweenKnotsV = 5;
 bool				wireframe			= false;
 
 void Tessellate();
