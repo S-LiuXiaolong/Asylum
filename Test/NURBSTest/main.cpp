@@ -375,7 +375,7 @@ void Tessellate()
 		{
 			// TODO: groupnum = numCpt + DEGREE
 			// numknots = numCpt + DEGREE + 1
-			glDispatchCompute(1, 1, 1);
+			glDispatchCompute(numCptU - DEGREE, numCptV - DEGREE, 1);
 		}
 		tessellatesurfacemy->End();
 

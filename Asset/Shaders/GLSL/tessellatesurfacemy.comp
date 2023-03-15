@@ -119,7 +119,7 @@ float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
 	return Blossom[(e * MAX_ORDER + degree) * MAX_ORDER];
 }
 
-layout (local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
+layout (local_size_x = 1, local_size_y = 1) in;
 void main()
 {
 	vec4 cf;
@@ -136,9 +136,10 @@ void main()
 	int index1, index2;
 
 	// STEP 1: calculate coefficients
-	if (gl_LocalInvocationIndex == 0) {
+	if (gl_LocalInvocationIndex == 0)
+	{
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanU = 0; spanU < numknotsU - 1; ++spanU) {
+		for (int spanU = degreeU; spanU < numControlPointsU ; ++spanU) {
 			for (int k = 0; k <= min(degreeU, spanU); ++k) {
 				index1 = spanU * MAX_ORDER + k;
 
@@ -158,7 +159,7 @@ void main()
 		}
 
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanV = 0; spanV < numknotsV - 1; ++spanV) {
+		for (int spanV = degreeU; spanV < numControlPointsV; ++spanV) {
 			for (int k = 0; k <= min(degreeV, spanV); ++k) {
 				index2 = spanV * MAX_ORDER + k;
 
