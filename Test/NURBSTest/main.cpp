@@ -143,12 +143,7 @@ void build_mesh()
 	for (int i = 0; i < buffer_cpts.size() / 3; i++)
 	{
 		mesh_cp_vertices[i] = { buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2] };
-		// printf("%f %f %f\n", buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2]);
 	}
-	// For testing deformation
-	// mesh_cp_vertices[10].z -= 1.0f;
-	// mesh_cp_vertices[19].z -= 0.5f;
-	// mesh_cp_vertices[19].x += 0.5f;
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;

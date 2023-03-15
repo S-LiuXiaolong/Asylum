@@ -139,7 +139,6 @@ void main()
 	if (gl_LocalInvocationIndex == 0)
 	{
 		// NOTE: don't refactor this into a function, it won't work!!!
-		// FIXME
 		for (int spanU = degreeU; spanU < numControlPointsU ; ++spanU)
 		{
 			for (int k = 0; k <= min(degreeU, spanU); ++k)
@@ -163,7 +162,6 @@ void main()
 		}
 
 		// NOTE: don't refactor this into a function, it won't work!!!
-		// FIXME
 		for (int spanV = degreeV; spanV < numControlPointsV; ++spanV)
 		{
 			for (int k = 0; k <= min(degreeV, spanV); ++k)
@@ -232,7 +230,6 @@ void main()
 
 	float firstU = knotsU[degreeU + groupIDx];
 	float nextU = knotsU[degreeU + groupIDx + 1];
-	// FIXME
 	for(int i = startU; i < endU; i++)
 	{
 		u = float(i) / float(numSegBetweenKnotsU);
@@ -248,7 +245,6 @@ void main()
 
 		float firstV = knotsV[degreeV + groupIDy];
 		float lastV = knotsV[degreeV + groupIDy + 1];
-		// FIXME
 		for(int j = startV; j < endV; j++)
 		{
 			v = float(j) / float(numSegBetweenKnotsV);
