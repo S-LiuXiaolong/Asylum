@@ -13,7 +13,7 @@
 #include "basiccamera.h"
 
 // helper macros
-#define TITLE				"NURBS tessellation"
+#define TITLE				"¼Ä°ÉÍæÒâ¶ù"
 #define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
 
 #define DEGREE 2
@@ -39,10 +39,11 @@ struct NURBSSurfaceData
 NURBSSurfaceData mesh_surfaces[6];
 
 // sample variables
-Application*		app					= nullptr;
+Application*		app						= nullptr;
 
-OpenGLEffect*		rendersurface		= nullptr;
-OpenGLScreenQuad*	screenquad			= nullptr;
+OpenGLEffect*		rendersurface			= nullptr;
+OpenGLEffect*		tessellatesurfacemy		= nullptr;
+OpenGLScreenQuad*	screenquad				= nullptr;
 uint32_t cptsBuffer, wtsBuffer;
 
 std::vector<OpenGLMesh*>		surfacegroup;
@@ -267,6 +268,11 @@ bool InitScene()
 		return false;
 	}
 
+	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
+		MYERROR("Could not load compute shader");
+		return false;
+	}
+	
 	screenquad = new OpenGLScreenQuad();
 
 	// tessellate for the first time
@@ -287,6 +293,7 @@ bool InitScene()
 void UninitScene()
 {
 	delete rendersurface;
+	delete tessellatesurfacemy;
 	delete screenquad;
 
 	OpenGLContentManager().Release();
@@ -294,6 +301,10 @@ void UninitScene()
 
 void Tessellate()
 {
+	for (auto& surface : surfacegroup)
+	{
+		delete surface;
+	}
 	surfacegroup.clear();
 
 	OpenGLVertexElement decl[] = {
@@ -314,18 +325,12 @@ void Tessellate()
 		int numCptV = cptsIndex[0].size();
 
 		OpenGLMesh* surface = nullptr;
-		OpenGLEffect* tessellatesurfacemy = nullptr;
 
 		// create surface
 		// FIXME: How to get MaxSurfaceVertices and Indices?
 		// FIXME: Hard-codes here make fault.
 		if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
 			MYERROR("Could not create surface");
-			return;
-		}
-
-		if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
-			MYERROR("Could not load compute shader");
 			return;
 		}
 
@@ -373,7 +378,7 @@ void Tessellate()
 
 		tessellatesurfacemy->Begin();
 		{
-			// TODO: groupnum = numCpt + DEGREE
+			// groupnum = numCpt - DEGREE
 			// numknots = numCpt + DEGREE + 1
 			glDispatchCompute(numCptU - DEGREE, numCptV - DEGREE, 1);
 		}
@@ -390,8 +395,6 @@ void Tessellate()
 		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
 
 		delete[] surfacecvs;
-
-		delete tessellatesurfacemy;
 
 		surfacegroup.push_back(surface);
 	}

@@ -4,7 +4,7 @@
 // NOTE: don't write complex macro expressions
 // NOTE: don't use shared variables as function argument
 
-#define BLOCK_SIZE	5
+#define BLOCK_SIZE	16
 #define MAX_DEGREE	3
 #define MAX_ORDER	4
 // #define MAX_CVS		100
@@ -207,6 +207,14 @@ void main()
 	// float firstV		= knotsV[degreeV];
 	// float lastU			= knotsU[numControlPointsU];
 	// float lastV			= knotsV[numControlPointsV];
+	ivec2 loc = ivec2(gl_LocalInvocationID.xy);
+	int elemsperitemU = max(1, (numVtsBetweenKnotsU + (BLOCK_SIZE - 1)) / BLOCK_SIZE);
+	int elemsperitemV = max(1, (numVtsBetweenKnotsV + (BLOCK_SIZE - 1)) / BLOCK_SIZE); 
+	int startU = loc.x * elemsperitemU;
+	int startV = loc.y * elemsperitemV;
+	int endU = min(startU + elemsperitemU, numVtsBetweenKnotsU);
+	int endV = min(startV + elemsperitemV, numVtsBetweenKnotsV);
+
 	float u, v, nom, denom, weight;
 	float c, cdU, cdV;
 	vec3 dUf, dVf;
@@ -219,112 +227,108 @@ void main()
 	int numSegmentsV = numSegBetweenKnotsV * (numControlPointsV - degreeV);
 
 
-	int i = int(gl_WorkGroupID.x);
+	int groupIDx = int(gl_WorkGroupID.x);
+	int groupIDy = int(gl_WorkGroupID.y);
+
+	float firstU = knotsU[degreeU + groupIDx];
+	float nextU = knotsU[degreeU + groupIDx + 1];
+	// FIXME
+	for(int i = startU; i < endU; i++)
 	{
-		float firstU = knotsU[degreeU + i];
-		float nextU = knotsU[degreeU + i + 1];
-		for(int j = 0; j < numVtsBetweenKnotsU; j++)
+		u = float(i) / float(numSegBetweenKnotsU);
+		u = mix(firstU, nextU, u);
+
+		polyU = vec4(1.0, u, u * u, u * u * u);
+		dUpoly = vec4(0.0, 1.0, 2.0 * u, 3.0 * u * u);
+
+		for (spanU = 0; spanU < lastspanU; ++spanU) {
+			if ((knotsU[spanU] <= u && u < knotsU[spanU + 1]))
+				break;
+		}
+
+		float firstV = knotsV[degreeV + groupIDy];
+		float lastV = knotsV[degreeV + groupIDy + 1];
+		// FIXME
+		for(int j = startV; j < endV; j++)
 		{
-			u = float(j) / float(numSegBetweenKnotsU);
-			u = mix(firstU, nextU, u);
+			v = float(j) / float(numSegBetweenKnotsV);
+			v = mix(firstV, lastV, v);
 
-			polyU = vec4(1.0, u, u * u, u * u * u);
-			dUpoly = vec4(0.0, 1.0, 2.0 * u, 3.0 * u * u);
+			polyV = vec4(1.0, v, v * v, v * v * v);
+			dVpoly = vec4(0.0, 1.0, 2.0 * v, 3.0 * v * v);
 
-			for (spanU = 0; spanU < lastspanU; ++spanU) {
-				if ((knotsU[spanU] <= u && u < knotsU[spanU + 1]))
+			for (spanV = 0; spanV < lastspanV; ++spanV) {
+				if ((knotsV[spanV] <= v && v < knotsV[spanV + 1]))
 					break;
 			}
 
-			int m = int(gl_WorkGroupID.y);
-			{
-				float firstV = knotsV[degreeV + m];
-				float lastV = knotsV[degreeV + m + 1];
-				for(int n = 0; n < numVtsBetweenKnotsV; n++)
-				{
-					v = float(n) / float(numSegBetweenKnotsV);
-					v = mix(firstV, lastV, v);
+			// sum contributions
+			pos = vec4(0.0);
+			dUf = vec3(0.0);
+			dVf = vec3(0.0);
 
-					polyV = vec4(1.0, v, v * v, v * v * v);
-					dVpoly = vec4(0.0, 1.0, 2.0 * v, 3.0 * v * v);
+			denom = 0.0;
+			dUg = 0.0;
+			dVg = 0.0;
 
-					for (spanV = 0; spanV < lastspanV; ++spanV) {
-						if ((knotsV[spanV] <= v && v < knotsV[spanV + 1]))
-							break;
-					}
+			for (int k = 0; k < orderU; ++k) {
+				for (int l = 0; l < orderV; ++l) {
+					index1 = spanU * MAX_ORDER + k;
+					index2 = spanV * MAX_ORDER + l;
 
-					// sum contributions
-					pos = vec4(0.0);
-					dUf = vec3(0.0);
-					dVf = vec3(0.0);
+					cpU = (spanU - k) % numControlPointsU;
+					cpV = (spanV - l) % numControlPointsV;
 
-					denom = 0.0;
-					dUg = 0.0;
-					dVg = 0.0;
+					// cf = controlPoints[cpU * numControlPointsV + cpV];
+					cf = controlPointsBuffer.Position[cpU * numControlPointsV + cpV];
+					// weight = weights[cpU * numControlPointsV + cpV];
+					weight = weightsBuffer.data[cpU * numControlPointsV + cpV];
 
-					for (int k = 0; k < orderU; ++k) {
-						for (int l = 0; l < orderV; ++l) {
-							index1 = spanU * MAX_ORDER + k;
-							index2 = spanV * MAX_ORDER + l;
+					c = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], polyV) * weight;
+					cdU = dot(CoeffsU[index1], dUpoly) * dot(CoeffsV[index2], polyV) * weight;
+					cdV = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], dVpoly) * weight;
 
-							cpU = (spanU - k) % numControlPointsU;
-							cpV = (spanV - l) % numControlPointsV;
+					pos += cf * c;	// f
+					denom += c;		// g
 
-							// cf = controlPoints[cpU * numControlPointsV + cpV];
-							cf = controlPointsBuffer.Position[cpU * numControlPointsV + cpV];
-							// weight = weights[cpU * numControlPointsV + cpV];
-							weight = weightsBuffer.data[cpU * numControlPointsV + cpV];
+					dUg += cdU;
+					dVg += cdV;
 
-							c = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], polyV) * weight;
-							cdU = dot(CoeffsU[index1], dUpoly) * dot(CoeffsV[index2], polyV) * weight;
-							cdV = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], dVpoly) * weight;
-
-							pos += cf * c;	// f
-							denom += c;		// g
-
-							dUg += cdU;
-							dVg += cdV;
-
-							dUf += cf.xyz * cdU;
-							dVf += cf.xyz * cdV;
-						}
-					}
-
-					tangent = (dUf * denom - dUg * pos.xyz) / (denom * denom);
-					bitangent = (dVf * denom - dVg * pos.xyz) / (denom * denom);
-					pos /= denom;
-
-					pos.w = 1.0;
-					index1 = (i * numVtsBetweenKnotsU + j) * numVerticesV + m * numVtsBetweenKnotsV + n;
-
-					surfacevertices.data[index1].Position = pos;
-					surfacevertices.data[index1].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
+					dUf += cf.xyz * cdU;
+					dVf += cf.xyz * cdV;
 				}
 			}
+
+			tangent = (dUf * denom - dUg * pos.xyz) / (denom * denom);
+			bitangent = (dVf * denom - dVg * pos.xyz) / (denom * denom);
+			pos /= denom;
+
+			pos.w = 1.0;
+			index1 = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+
+			surfacevertices.data[index1].Position = pos;
+			surfacevertices.data[index1].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
 		}
 	}
+
 
 	// STEP 3: fill index buffer
-	// int i = int(gl_WorkGroupID.x);
+	endU = endU == numVtsBetweenKnotsU ? (endU - 1) : endU;
+	endV = endV == numVtsBetweenKnotsV ? (endV - 1) : endV;
+
+	for(int i = startU; i < endU; i++)
 	{
-		for(int j = 0; j < numSegBetweenKnotsU; j++)
+		for(int j = startV; j < endV; j++)
 		{
-			int m = int(gl_WorkGroupID.y);
-			{
-				for(int n = 0; n < numSegBetweenKnotsV; n++)
-				{
-					index1 = (i * numSegBetweenKnotsU + j) * numSegmentsV + m * numSegBetweenKnotsV + n;
+			index1 = (groupIDx * numSegBetweenKnotsU + i) * numSegmentsV + groupIDy * numSegBetweenKnotsV + j;
 
-					surfaceindices.data[index1].Indices[0] = (i * numVtsBetweenKnotsU + j) * numVerticesV + m * numVtsBetweenKnotsV + n;
-					surfaceindices.data[index1].Indices[1] = (i * numVtsBetweenKnotsU + j) * numVerticesV + m * numVtsBetweenKnotsV + n + 1;
-					surfaceindices.data[index1].Indices[2] = (i * numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n + 1;
+			surfaceindices.data[index1].Indices[0] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			surfaceindices.data[index1].Indices[1] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+			surfaceindices.data[index1].Indices[2] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
 
-					surfaceindices.data[index1].Indices[3] = (i * numVtsBetweenKnotsU + j) * numVerticesV + m * numVtsBetweenKnotsV + n;
-					surfaceindices.data[index1].Indices[4] = (i * numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n + 1;
-					surfaceindices.data[index1].Indices[5] = (i* numVtsBetweenKnotsU + j + 1) * numVerticesV + m * numVtsBetweenKnotsV + n;
-				}
-			}
+			surfaceindices.data[index1].Indices[3] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			surfaceindices.data[index1].Indices[4] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+			surfaceindices.data[index1].Indices[5] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 		}
 	}
-
 }
