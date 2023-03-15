@@ -20,25 +20,14 @@
 
 // FIXME: Delete
 // control constants
-#define MAX_NUM_SEGMENTS 100
+#define MAX_NUM_SEGMENTS 1000
 const GLuint NumControlVertices				= 7;
 const GLuint NumControlIndices				= (NumControlVertices - 1) * 2;
 const GLuint MaxSplineVertices				= MAX_NUM_SEGMENTS + 1;
-const GLuint MaxSplineIndices				= (MaxSplineVertices - 1) * 2;
+const GLuint MaxSplineIndices				= (MaxSplineVertices - 1) * 4;
 const GLuint MaxSurfaceVertices				= MaxSplineVertices * MaxSplineVertices;
 const GLuint MaxSurfaceIndices				= (MaxSplineVertices - 1) * (MaxSplineVertices - 1) * 6;
 
-// FIXME: Add a more flexible way to define a CurveData but not hardcode.
-// // sample structures
-// struct CurveData
-// {
-// 	int degree;	// max 3
-// 	Math::Vector4 controlpoints[NumControlVertices];
-// 	float weights[NumControlVertices + 4];
-// 	float knots[11];
-// };
-
-// TODO: A SurfaceData may be useful? CurveData is useless in my situation.
 // TODO: Maybe put the surface and whole-mesh class into another file?
 struct NURBSSurfaceData
 {
@@ -54,13 +43,15 @@ Application*		app					= nullptr;
 
 OpenGLEffect*		rendersurface		= nullptr;
 OpenGLScreenQuad*	screenquad			= nullptr;
+uint32_t cptsBuffer, wtsBuffer;
+
 std::vector<OpenGLMesh*>		surfacegroup;
 
 BasicCamera			camera;
 float				selectiondx			= 0;
 float				selectiondy			= 0;
-int					numSegBetweenKnotsU = 2;
-int					numSegBetweenKnotsV = 2;
+int					numSegBetweenKnotsU = 1;
+int					numSegBetweenKnotsV = 1;
 bool				wireframe			= false;
 
 void Tessellate();
@@ -164,7 +155,6 @@ void build_mesh()
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
-	// FIXME: SHITCODE. Weight is hardcoded as 1.
 	// Get all weights(same size as the controlPts) from binary file.
 	read_float("../../../Asset/weights.bin", mesh_cp_weights);
 
@@ -173,7 +163,6 @@ void build_mesh()
 	read_float("../../../Asset/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
-	// FIXME: SHITCODE. Please write in a more clear way.
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
 	auto knotyBegin = buffer_knots.begin() + rowLength; auto knotyEnd = buffer_knots.begin() + rowLength + numCpty + 2 + 1;
 	auto knotzBegin = buffer_knots.begin() + rowLength * 2; auto knotzEnd = buffer_knots.begin() + rowLength * 2 + numCptz + 2 + 1;
@@ -283,6 +272,7 @@ bool InitScene()
 	// tessellate for the first time
 	Tessellate();
 
+	// FIXME: Modify the code of camera (maybe with AABB of the NURBS mesh)
 	// setup camera
 	camera.SetAspect((float)screenwidth / screenheight);
 	camera.SetFov(Math::DegreesToRadians(60));
@@ -304,6 +294,8 @@ void UninitScene()
 
 void Tessellate()
 {
+	surfacegroup.clear();
+
 	OpenGLVertexElement decl[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
@@ -326,6 +318,7 @@ void Tessellate()
 
 		// create surface
 		// FIXME: How to get MaxSurfaceVertices and Indices?
+		// FIXME: Hard-codes here make fault.
 		if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
 			MYERROR("Could not create surface");
 			return;
@@ -339,7 +332,7 @@ void Tessellate()
 		// update surface cvs and weights (STL 2D vector will cause fault)
 		Math::Vector4* surfacecvs = new Math::Vector4[numCptU * numCptV];
 		float* surfacewts = new float[numCptU * numCptV];
-		GLuint index;
+		uint32_t index;
 
 		for (GLuint m = 0; m < numCptU; ++m) {
 			for (GLuint n = 0; n < numCptV; ++n) {
@@ -354,25 +347,34 @@ void Tessellate()
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
+		//-------------------------------------TEST PASS------------------------------------------
+
+		glGenBuffers(1, &cptsBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
+
+		glGenBuffers(1, &wtsBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(float), surfacewts, GL_DYNAMIC_READ);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
+		//-------------------------------------TEST PASS------------------------------------------
 
 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-
-		// FIXME: SHITCODE. Please put these variables in a manner way.
 		tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
 		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
 		tessellatesurfacemy->SetInt("degreeU", DEGREE);
 		tessellatesurfacemy->SetInt("degreeV", DEGREE);
 		tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
 		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
-		// FIXME: weight should be passed into compute shader in the same way as controlPoints.
-		// tessellatesurfacemy->SetFloatArray("weightsu", weight1, numCptU);
-		// tessellatesurfacemy->SetFloatArray("weightsv", weight2, numCptV);
-		tessellatesurfacemy->SetFloatArray("weights", &surfacewts[0], numCptU * numCptV);
-		tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], numCptU * numCptV);
+		// tessellatesurfacemy->SetFloatArray("weights", &surfacewts[0], numCptU * numCptV);
+		// tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], numCptU * numCptV);
 
 		tessellatesurfacemy->Begin();
 		{
+			// TODO: groupnum = numCpt + DEGREE
+			// numknots = numCpt + DEGREE + 1
 			glDispatchCompute(1, 1, 1);
 		}
 		tessellatesurfacemy->End();
@@ -399,12 +401,6 @@ void Tessellate()
 
 void KeyUp(KeyCode key)
 {
-	// for (int i = 0; i < ARRAY_SIZE(curves); ++i) {
-	// 	if (key == KeyCode1 + i) {
-	// 		// Tessellate();
-	// 	}
-	// }
-
 	switch (key) {
 
 	case KeyCodeW:
@@ -412,15 +408,25 @@ void KeyUp(KeyCode key)
 		break;
 
 	case KeyCodeA:
-		numSegBetweenKnotsU = Math::Min<int>(numSegBetweenKnotsU + 2, 20);
-		numSegBetweenKnotsV = Math::Min<int>(numSegBetweenKnotsV + 2, 20);
-		// Tessellate();
+		numSegBetweenKnotsU = Math::Min<int>(numSegBetweenKnotsU + 5, 20);
+		numSegBetweenKnotsV = Math::Min<int>(numSegBetweenKnotsV + 5, 20);
+		Tessellate();
 		break;
 
 	case KeyCodeD:
-		numSegBetweenKnotsU = Math::Max<int>(numSegBetweenKnotsU - 2, 2);
-		numSegBetweenKnotsV = Math::Max<int>(numSegBetweenKnotsV - 2, 2);
-		// Tessellate();
+		numSegBetweenKnotsU = Math::Max<int>(numSegBetweenKnotsU - 5, 5);
+		numSegBetweenKnotsV = Math::Max<int>(numSegBetweenKnotsV - 5, 5);
+		Tessellate();
+		break;
+
+	case KeyCodeQ:
+		mesh_cp_vertices[10].z -= 0.2f;
+		Tessellate();
+		break;
+
+	case KeyCodeE:
+		mesh_cp_vertices[10].z += 0.2f;
+		Tessellate();
 		break;
 
 	default:
@@ -539,6 +545,29 @@ int main(int argc, char* argv[])
 		delete app;
 		return 1;
 	}
+
+	// query limitations
+	// -----------------
+	int max_compute_work_group_count[3];
+	int max_compute_work_group_size[3];
+	int max_compute_work_group_invocations;
+
+	for (int idx = 0; idx < 3; idx++) {
+		glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, idx, &max_compute_work_group_count[idx]);
+		glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, idx, &max_compute_work_group_size[idx]);
+	}
+	glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &max_compute_work_group_invocations);
+
+	std::cout << "OpenGL Limitations: " << std::endl;
+	std::cout << "maximum number of work groups in X dimension " << max_compute_work_group_count[0] << std::endl;
+	std::cout << "maximum number of work groups in Y dimension " << max_compute_work_group_count[1] << std::endl;
+	std::cout << "maximum number of work groups in Z dimension " << max_compute_work_group_count[2] << std::endl;
+
+	std::cout << "maximum size of a work group in X dimension " << max_compute_work_group_size[0] << std::endl;
+	std::cout << "maximum size of a work group in Y dimension " << max_compute_work_group_size[1] << std::endl;
+	std::cout << "maximum size of a work group in Z dimension " << max_compute_work_group_size[2] << std::endl;
+
+	std::cout << "Number of invocations in a single local work group that may be dispatched to a compute shader " << max_compute_work_group_invocations << std::endl;
 
 	app->InitSceneCallback = InitScene;
 	app->UninitSceneCallback = UninitScene;

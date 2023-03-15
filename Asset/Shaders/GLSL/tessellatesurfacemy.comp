@@ -4,12 +4,12 @@
 // NOTE: don't write complex macro expressions
 // NOTE: don't use shared variables as function argument
 
-#define BLOCK_SIZE	16
+#define BLOCK_SIZE	5
 #define MAX_DEGREE	3
 #define MAX_ORDER	4
-#define MAX_CVS		100
-#define MAX_KNOTS	104
-#define MAX_SPANS	103
+// #define MAX_CVS		100
+#define MAX_KNOTS	101
+#define MAX_SPANS	100
 
 struct Vertex
 {
@@ -30,16 +30,19 @@ layout (std430, binding = 1) buffer IndexBuffer {
 	Tile data[];
 } surfaceindices;
 
-// TODO: Hard code here will cause fault.
-uniform vec4 controlPoints[MAX_CVS];
+layout (std140, binding = 2) buffer cptsBuffer {
+	vec4 Position[];
+} controlPointsBuffer;
+
+layout (std430, binding = 3) buffer wtsBuffer {
+	float data[];
+} weightsBuffer;
+
+
+// TODO: Hard code here may cause fault.
 uniform float knotsU[MAX_KNOTS];
 uniform float knotsV[MAX_KNOTS];
-// uniform float weightsU[MAX_CVS];
-// uniform float weightsV[MAX_CVS];
-uniform float weights[MAX_CVS];
 
-// uniform int numVerticesU;
-// uniform int numVerticesV;
 uniform int numControlPointsU;
 uniform int numControlPointsV;
 // here vertice includes the ones related to knots
@@ -49,9 +52,9 @@ uniform int degreeU;
 uniform int degreeV;
 
 // vec4 <=> max degree 3 curves
-shared vec4 CoeffsU[52];	// MAX_ORDER * MAX_SPANS
-shared vec4 CoeffsV[52];	// MAX_ORDER * MAX_SPANS
-shared float Blossom[64];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
+shared vec4 CoeffsU[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
+shared vec4 CoeffsV[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
+shared float Blossom[MAX_ORDER * MAX_ORDER * MAX_ORDER];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
 
 float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
 {
@@ -257,9 +260,10 @@ void main()
 							cpU = (spanU - k) % numControlPointsU;
 							cpV = (spanV - l) % numControlPointsV;
 
-							cf = controlPoints[cpU * numControlPointsV + cpV];
-							// FIXME: Here the weight should have the same size and index with the controlPts
-							weight = weights[cpU * numControlPointsV + cpV];
+							// cf = controlPoints[cpU * numControlPointsV + cpV];
+							cf = controlPointsBuffer.Position[cpU * numControlPointsV + cpV];
+							// weight = weights[cpU * numControlPointsV + cpV];
+							weight = weightsBuffer.data[cpU * numControlPointsV + cpV];
 
 							c = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], polyV) * weight;
 							cdU = dot(CoeffsU[index1], dUpoly) * dot(CoeffsV[index2], polyV) * weight;
