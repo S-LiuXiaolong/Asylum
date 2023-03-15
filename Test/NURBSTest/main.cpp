@@ -13,7 +13,7 @@
 #include "basiccamera.h"
 
 // helper macros
-#define TITLE				"¼Ä°ÉÍæÒâ¶ù"
+#define TITLE				"NURBS tesselation"
 #define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
 
 #define DEGREE 2
