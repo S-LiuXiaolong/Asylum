@@ -34,6 +34,8 @@ struct NURBSSurfaceData
 	std::vector<std::vector<uint32_t>> cptsIndex;
 	std::vector<std::vector<float>> weights;
 	std::vector<float> knotU, knotV;
+
+	std::vector<std::vector<float>> patchRho;
 };
 
 NURBSSurfaceData mesh_surfaces[6];
@@ -44,15 +46,15 @@ Application*		app						= nullptr;
 OpenGLEffect*		rendersurface			= nullptr;
 OpenGLEffect*		tessellatesurfacemy		= nullptr;
 OpenGLScreenQuad*	screenquad				= nullptr;
-uint32_t cptsBuffer, wtsBuffer;
+uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
 
 std::vector<OpenGLMesh*>		surfacegroup;
 
 BasicCamera			camera;
 float				selectiondx			= 0;
 float				selectiondy			= 0;
-int					numSegBetweenKnotsU = 5;
-int					numSegBetweenKnotsV = 5;
+int					numSegBetweenKnotsU = 1;
+int					numSegBetweenKnotsV = 1;
 bool				wireframe			= false;
 
 void Tessellate();
@@ -63,6 +65,7 @@ uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
+std::vector<std::vector<std::vector<float>>> mesh_rho;
 
 // TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float>& buffer);
@@ -98,9 +101,38 @@ void build_surface()
 		faceIndices[5].push_back(onecolumn2);
 	}
 
+	std::vector<std::vector<float>> faceRhos[6];
+
+	faceRhos[0] = mesh_rho[0];
+	faceRhos[1] = mesh_rho[nelx - 1];
+
+	for (int i = 0; i < nelx; i++)
+	{
+		std::vector<float> onerow1 = mesh_rho[i][0];
+		faceRhos[2].push_back(onerow1);
+
+		std::vector<float> onerow2 = mesh_rho[i][nelz - 1];
+		faceRhos[3].push_back(onerow2);
+
+		std::vector<float> onecolumn1;
+		for (int j = 0; j < nelz; j++)
+		{
+			onecolumn1.push_back(mesh_rho[i][j][0]);
+		}
+		faceRhos[4].push_back(onecolumn1);
+
+		std::vector<float> onecolumn2;
+		for (int j = 0; j < nelz; j++)
+		{
+			onecolumn2.push_back(mesh_rho[i][j][nely - 1]);
+		}
+		faceRhos[5].push_back(onecolumn2);
+	}
+
 	for (int i = 0; i < 6; i++)
 	{
 		auto& faceIndex = faceIndices[i];
+		auto& faceRho = faceRhos[i];
 		int numCptsU = faceIndex.size(); int numCptsV = faceIndex[0].size();
 		std::vector<std::vector<Math::Vector3>> cpts(numCptsU, std::vector<Math::Vector3>(numCptsV, { 0,0,0 }));
 		std::vector<std::vector<float>> wts(numCptsU, std::vector<float>(numCptsV, 0));
@@ -128,7 +160,7 @@ void build_surface()
 			knotu = knotx; knotv = knotz; break;
 		}
 		
-		mesh_surfaces[i] = { faceIndex, wts, knotu, knotv };
+		mesh_surfaces[i] = { faceIndex, wts, knotu, knotv, faceRho };
 	}
 }
 
@@ -182,6 +214,23 @@ void build_mesh()
 			face.push_back(line);
 		}
 		chan.push_back(face);
+	}
+
+	std::vector<float> buffer_rho;
+	read_float("../../../Asset/rho.bin", buffer_rho);
+	for (int i = 0; i < nelx; i++)
+	{
+		std::vector<std::vector<float>> face;
+		for (int j = 0; j < nelz; j++)
+		{
+			std::vector<float> line;
+			for (int k = 0; k < nely; k++)
+			{
+				line.push_back(buffer_rho[i * nelz * nely + j * nely + k]);
+			}
+			face.push_back(line);
+		}
+		mesh_rho.push_back(face);
 	}
 
 	build_surface();
@@ -258,7 +307,7 @@ bool InitScene()
 
 	// load shaders
 	// TODO: Add a more clear way (assetloader)
-	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/rendersurface.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/rendersurface.frag", &rendersurface)) {
+	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/rendersurfacemy.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/rendersurfacemy.frag", &rendersurface)) {
 		MYERROR("Could not load surface renderer shader");
 		return false;
 	}
@@ -305,6 +354,7 @@ void Tessellate()
 	OpenGLVertexElement decl[] = {
 		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
 		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
+		{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
 		{ 0xff, 0, 0, 0, 0 }
 	};
 
@@ -315,6 +365,7 @@ void Tessellate()
 		auto& weights = surfData.weights;
 		auto& knotU = surfData.knotU;
 		auto& knotV = surfData.knotV;
+		auto& rho = surfData.patchRho;
 
 		int numCptU = cptsIndex.size();
 		int numCptV = cptsIndex[0].size();
@@ -332,10 +383,11 @@ void Tessellate()
 		// update surface cvs and weights (STL 2D vector will cause fault)
 		Math::Vector4* surfacecvs = new Math::Vector4[numCptU * numCptV];
 		float* surfacewts = new float[numCptU * numCptV];
+		float* surfacerho = new float[(numCptU - 2) * (numCptV - 2)];
 		uint32_t index;
 
-		for (GLuint m = 0; m < numCptU; ++m) {
-			for (GLuint n = 0; n < numCptV; ++n) {
+		for (int m = 0; m < numCptU; ++m) {
+			for (int n = 0; n < numCptV; ++n) {
 				index = m * numCptV + n;
 				surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[m][n] - 1].x;
 				surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[m][n] - 1].y;
@@ -344,6 +396,14 @@ void Tessellate()
 				surfacewts[index] = weights[m][n];
 			}
 		}
+
+		for (int m = 0; m < numCptU - 2; ++m) {
+			for (int n = 0; n < numCptV - 2; ++n) {
+				index = m * (numCptV - 2) + n;
+				surfacerho[index] = rho[m][n];
+			}
+		}
+
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
@@ -356,8 +416,13 @@ void Tessellate()
 
 		glGenBuffers(1, &wtsBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(float), surfacewts, GL_DYNAMIC_READ);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(float), surfacewts, GL_STATIC_READ);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
+
+		glGenBuffers(1, &rhoBuffer);
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, (numCptU - 2) * (numCptV - 2) * sizeof(float), surfacerho, GL_STATIC_READ);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
 		//-------------------------------------TEST PASS------------------------------------------
 
 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);

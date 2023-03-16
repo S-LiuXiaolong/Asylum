@@ -15,6 +15,7 @@ struct Vertex
 {
 	vec4 Position;
 	vec4 Normal;
+	vec4 Color;
 };
 
 struct Tile
@@ -37,6 +38,10 @@ layout (std140, binding = 2) buffer cptsBuffer {
 layout (std430, binding = 3) buffer wtsBuffer {
 	float data[];
 } weightsBuffer;
+
+layout (std430, binding = 4) buffer rhoBuffer {
+	float data[];
+} elementRhoBuffer;
 
 
 // TODO: Hard code here may cause fault.
@@ -96,10 +101,10 @@ float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
 				} else if (k == n) {
 					// C_i,n,n
 					if (kin != ki)
-						a = 1.0f / (kin - ki);
+						a = 1.0 / (kin - ki);
 
 					if (kin1 != ki1)
-						b = 1.0f / (kin1 - ki1);
+						b = 1.0 / (kin1 - ki1);
 
 					Blossom[index1] = Blossom[index3] * a - Blossom[index3 + 1] * b;
 				} else {
@@ -193,18 +198,6 @@ void main()
 	vec4 dUpoly, dVpoly;
 	vec3 tangent, bitangent;
 
-	// ivec2 loc			= ivec2(gl_LocalInvocationID.xy);
-	// int elemsperitemU	= max(1, (numVerticesU + (BLOCK_SIZE - 1)) / BLOCK_SIZE);
-	// int elemsperitemV	= max(1, (numVerticesV + (BLOCK_SIZE - 1)) / BLOCK_SIZE);
-	// int startU			= loc.x * elemsperitemU;
-	// int startV			= loc.y * elemsperitemV;
-	// int endU			= min(startU + elemsperitemU, numVerticesU);
-	// int endV			= min(startV + elemsperitemV, numVerticesV);
-
-	// float firstU		= knotsU[degreeU];
-	// float firstV		= knotsV[degreeV];
-	// float lastU			= knotsU[numControlPointsU];
-	// float lastV			= knotsV[numControlPointsV];
 	ivec2 loc = ivec2(gl_LocalInvocationID.xy);
 	int elemsperitemU = max(1, (numVtsBetweenKnotsU + (BLOCK_SIZE - 1)) / BLOCK_SIZE);
 	int elemsperitemV = max(1, (numVtsBetweenKnotsV + (BLOCK_SIZE - 1)) / BLOCK_SIZE); 
@@ -304,6 +297,10 @@ void main()
 
 			surfacevertices.data[index1].Position = pos;
 			surfacevertices.data[index1].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
+
+			index2 = groupIDx * (numControlPointsV - degreeV) + groupIDy;
+			float elementRho = elementRhoBuffer.data[index2];
+			surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
 		}
 	}
 
