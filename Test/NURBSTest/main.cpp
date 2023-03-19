@@ -38,7 +38,8 @@ struct NURBSSurfaceData
 	std::vector<std::vector<float>> patchRho;
 };
 
-NURBSSurfaceData mesh_surfaces[6];
+// NURBSSurfaceData mesh_surfaces[6];
+std::vector<NURBSSurfaceData> mesh_surfaces;
 
 // sample variables
 Application*		app						= nullptr;
@@ -73,63 +74,80 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
 void build_surface()
 {
-	std::vector<std::vector<uint32_t>> faceIndices[6];
+	int allFaceNum = numCptx + numCpty + numCptz;
+	// Face indices
+	std::vector<std::vector<std::vector<uint32_t>>> faceIndices;
+
+	faceIndices.resize(allFaceNum);
 	
-	faceIndices[0] = chan[0];
-	faceIndices[1] = chan[numCptx - 1];
-	
-	for (int i = 0; i < numCptx; i++)
+	int faceFlag = 0;
+	for(int i = 0; i < numCptx; i++)
 	{
-		std::vector<uint32_t> onerow1 = chan[i][0];
-		faceIndices[2].push_back(onerow1);
-
-		std::vector<uint32_t> onerow2 = chan[i][numCptz - 1];
-		faceIndices[3].push_back(onerow2);
-
-		std::vector<uint32_t> onecolumn1;
-		for (int j = 0; j < numCptz; j++)
+		faceIndices[faceFlag] = chan[i];
+		faceFlag++;
+	}
+	
+	for(int i = 0; i < numCptz; i++)
+	{
+		for(int j = 0; j < numCptx; j++)
 		{
-			onecolumn1.push_back(chan[i][j][0]);
+			std::vector<uint32_t> onerow = chan[j][i];
+			faceIndices[faceFlag].push_back(onerow);
 		}
-		faceIndices[4].push_back(onecolumn1);
-
-		std::vector<uint32_t> onecolumn2;
-		for (int j = 0; j < numCptz; j++)
-		{
-			onecolumn2.push_back(chan[i][j][numCpty - 1]);
-		}
-		faceIndices[5].push_back(onecolumn2);
+		faceFlag++;
 	}
 
-	std::vector<std::vector<float>> faceRhos[6];
-
-	faceRhos[0] = mesh_rho[0];
-	faceRhos[1] = mesh_rho[nelx - 1];
-
-	for (int i = 0; i < nelx; i++)
+	for(int i = 0; i < numCpty; i++)
 	{
-		std::vector<float> onerow1 = mesh_rho[i][0];
-		faceRhos[2].push_back(onerow1);
-
-		std::vector<float> onerow2 = mesh_rho[i][nelz - 1];
-		faceRhos[3].push_back(onerow2);
-
-		std::vector<float> onecolumn1;
-		for (int j = 0; j < nelz; j++)
+		for(int j = 0; j < numCptx; j++)
 		{
-			onecolumn1.push_back(mesh_rho[i][j][0]);
+			std::vector<uint32_t> onecolomn;
+			for(int k = 0; k < numCptz; k++)
+			{
+				onecolomn.push_back(chan[j][k][i]);
+			}
+			faceIndices[faceFlag].push_back(onecolomn);
 		}
-		faceRhos[4].push_back(onecolumn1);
-
-		std::vector<float> onecolumn2;
-		for (int j = 0; j < nelz; j++)
-		{
-			onecolumn2.push_back(mesh_rho[i][j][nely - 1]);
-		}
-		faceRhos[5].push_back(onecolumn2);
+		faceFlag++;
 	}
 
-	for (int i = 0; i < 6; i++)
+	// Element density
+	std::vector<std::vector<std::vector<float>>> faceRhos;
+	faceRhos.resize(allFaceNum);
+
+	faceFlag = 0;
+	for(int i = 0; i < numCptx; i++)
+	{
+		faceRhos[faceFlag] = mesh_rho[i];
+		faceFlag++;
+	}
+	
+	for(int i = 0; i < numCptz; i++)
+	{
+		for(int j = 0; j < nelx; j++)
+		{
+			std::vector<float> onerow = mesh_rho[j][i];
+			faceRhos[faceFlag].push_back(onerow);
+		}
+		faceFlag++;
+	}
+
+	for(int i = 0; i < numCpty; i++)
+	{
+		for(int j = 0; j < nelx; j++)
+		{
+			std::vector<float> onecolomn;
+			for(int k = 0; k < nelz; k++)
+			{
+				onecolomn.push_back(mesh_rho[j][k][i]);
+			}
+			faceRhos[faceFlag].push_back(onecolomn);
+		}
+		faceFlag++;
+	}
+
+	mesh_surfaces.resize(allFaceNum);
+	for (int i = 0; i < allFaceNum; i++)
 	{
 		auto& faceIndex = faceIndices[i];
 		auto& faceRho = faceRhos[i];
@@ -148,18 +166,27 @@ void build_surface()
 		}
 
 		std::vector<float> knotu, knotv;
-		switch (i) {
-		case 0: 
-		case 1: 
-			knotu = knotz; knotv = knoty; break;
-		case 2:
-		case 3:
-			knotu = knotx; knotv = knoty; break;
-		case 4:
-		case 5:
-			knotu = knotx; knotv = knotz; break;
+		// switch (i) {
+		// case 0: 
+		// case 1: 
+		// 	knotu = knotz; knotv = knoty; break;
+		// case 2:
+		// case 3:
+		// 	knotu = knotx; knotv = knoty; break;
+		// case 4:
+		// case 5:
+		// 	knotu = knotx; knotv = knotz; break;
+		// }
+		if(i >= 0 && i < numCptx) {
+			knotu = knotz; knotv = knoty;
 		}
-		
+		else if(i >= numCptx && i < numCptx + numCptz) {
+			knotu = knotx; knotv = knoty;
+		}
+		else if(i >= numCptx + numCpty && i < numCptx + numCptz + numCpty) {
+			knotu = knotx; knotv = knotz;
+		}
+
 		mesh_surfaces[i] = { faceIndex, wts, knotu, knotv, faceRho };
 	}
 }

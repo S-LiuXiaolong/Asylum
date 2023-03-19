@@ -321,6 +321,7 @@ void Render(float alpha, float elapsedtime)
 
 	glEnable(GL_DEPTH_TEST);
 
+	// ------------------------------------IMPORTANT---------------------------------------------
 	// render scene
 	float ambient[]	= { 0.1f, 0.1f, 0.1f, 1 };
 	float black[]	= { 0, 0, 0, 1 };
@@ -425,6 +426,7 @@ void Render(float alpha, float elapsedtime)
 		screenquad->Draw(false);
 	}
 	bloom->End();
+	// ------------------------------------IMPORTANT---------------------------------------------
 
 	// render text
 	glViewport(10, screenheight - 522, 512, 512);
