@@ -38,6 +38,16 @@ struct NURBSSurfaceData
 	std::vector<std::vector<float>> patchRho;
 };
 
+// FIXME: I need more thinking about NURBS
+struct NURBSLayerData
+{
+	std::vector<std::vector<uint32_t>> cptsIndex[3];
+	std::vector<std::vector<float>> weights[3];
+	std::vector<float> knotU, knotV, KnotW;
+
+	std::vector<std::vector<float>> LayerRho;
+};
+
 // NURBSSurfaceData mesh_surfaces[6];
 std::vector<NURBSSurfaceData> mesh_surfaces;
 
@@ -339,7 +349,7 @@ bool InitScene()
 		return false;
 	}
 
-	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemy.comp", &tessellatesurfacemy)) {
+	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemyRE.comp", &tessellatesurfacemy)) {
 		MYERROR("Could not load compute shader");
 		return false;
 	}
@@ -467,7 +477,8 @@ void Tessellate()
 		{
 			// groupnum = numCpt - DEGREE
 			// numknots = numCpt + DEGREE + 1
-			glDispatchCompute(numCptU - DEGREE, numCptV - DEGREE, 1);
+			// FIXME: change here the work group
+			glDispatchCompute(numCptU - DEGREE, numCptV - DEGREE, 2);
 		}
 		tessellatesurfacemy->End();
 
