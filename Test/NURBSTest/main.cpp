@@ -41,15 +41,17 @@ struct NURBSSurfaceData
 // FIXME: I need more thinking about NURBS
 struct NURBSLayerData
 {
-	std::vector<std::vector<uint32_t>> cptsIndex[3];
-	std::vector<std::vector<float>> weights[3];
-	std::vector<float> knotU, knotV, KnotW;
+	std::vector<std::vector<std::vector<uint32_t>>> cptsIndex;
+	std::vector<std::vector<std::vector<float>>> weights;
+	std::vector<float> knotU, knotV, knotW;
 
-	std::vector<std::vector<float>> LayerRho;
+	std::vector<std::vector<std::vector<float>>> LayerRho;
 };
 
 // NURBSSurfaceData mesh_surfaces[6];
 std::vector<NURBSSurfaceData> mesh_surfaces;
+// TODO
+NURBSLayerData mesh_layers[3];
 
 // sample variables
 Application*		app						= nullptr;
@@ -84,29 +86,23 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
 void build_surface()
 {
-	int allFaceNum = numCptx + numCpty + numCptz;
-	// Face indices
-	std::vector<std::vector<std::vector<uint32_t>>> faceIndices;
-
-	faceIndices.resize(allFaceNum);
-	
-	int faceFlag = 0;
+	mesh_layers[0].cptsIndex.resize(numCptx);
 	for(int i = 0; i < numCptx; i++)
 	{
-		faceIndices[faceFlag] = chan[i];
-		faceFlag++;
+		mesh_layers[0].cptsIndex[i] = chan[i];
 	}
-	
+
+	mesh_layers[1].cptsIndex.resize(numCptz);
 	for(int i = 0; i < numCptz; i++)
 	{
 		for(int j = 0; j < numCptx; j++)
 		{
 			std::vector<uint32_t> onerow = chan[j][i];
-			faceIndices[faceFlag].push_back(onerow);
+			mesh_layers[1].cptsIndex[i].push_back(onerow);
 		}
-		faceFlag++;
 	}
 
+	mesh_layers[2].cptsIndex.resize(numCpty);
 	for(int i = 0; i < numCpty; i++)
 	{
 		for(int j = 0; j < numCptx; j++)
@@ -116,33 +112,29 @@ void build_surface()
 			{
 				onecolomn.push_back(chan[j][k][i]);
 			}
-			faceIndices[faceFlag].push_back(onecolomn);
+			mesh_layers[2].cptsIndex[i].push_back(onecolomn);
 		}
-		faceFlag++;
 	}
 
 	// Element density
-	std::vector<std::vector<std::vector<float>>> faceRhos;
-	faceRhos.resize(allFaceNum);
-
-	faceFlag = 0;
-	for(int i = 0; i < numCptx; i++)
+	mesh_layers[0].LayerRho.resize(nelx);
+	for(int i = 0; i < nelx; i++)
 	{
-		faceRhos[faceFlag] = mesh_rho[i];
-		faceFlag++;
+		mesh_layers[0].LayerRho[i] = mesh_rho[i];
 	}
-	
-	for(int i = 0; i < numCptz; i++)
+
+	mesh_layers[1].LayerRho.resize(nelz);
+	for(int i = 0; i < nelz; i++)
 	{
 		for(int j = 0; j < nelx; j++)
 		{
 			std::vector<float> onerow = mesh_rho[j][i];
-			faceRhos[faceFlag].push_back(onerow);
+			mesh_layers[1].LayerRho[i].push_back(onerow);
 		}
-		faceFlag++;
 	}
 
-	for(int i = 0; i < numCpty; i++)
+	mesh_layers[2].LayerRho.resize(nely);
+	for(int i = 0; i < nely; i++)
 	{
 		for(int j = 0; j < nelx; j++)
 		{
@@ -151,53 +143,47 @@ void build_surface()
 			{
 				onecolomn.push_back(mesh_rho[j][k][i]);
 			}
-			faceRhos[faceFlag].push_back(onecolomn);
+			mesh_layers[2].LayerRho[i].push_back(onecolomn);
 		}
-		faceFlag++;
 	}
 
-	mesh_surfaces.resize(allFaceNum);
-	for (int i = 0; i < allFaceNum; i++)
+	for(int i = 0; i < 3; i++)
 	{
-		auto& faceIndex = faceIndices[i];
-		auto& faceRho = faceRhos[i];
-		int numCptsU = faceIndex.size(); int numCptsV = faceIndex[0].size();
-		std::vector<std::vector<Math::Vector3>> cpts(numCptsU, std::vector<Math::Vector3>(numCptsV, { 0,0,0 }));
-		std::vector<std::vector<float>> wts(numCptsU, std::vector<float>(numCptsV, 0));
+		auto& cptsIndex = mesh_layers[i].cptsIndex;
+		
+		int numCptsU = cptsIndex[0].size();
+		int numCptsV = cptsIndex[0][0].size();
+		int numCptsW = cptsIndex.size();
 
-		for (int axisU = 0; axisU < numCptsU; axisU++)
+		std::vector<std::vector<std::vector<float>>> wts(
+			numCptsW, std::vector<std::vector<float>>(numCptsU, std::vector<float>(numCptsV, 0)));
+
+		for(int axisW = 0; axisW < numCptsW; axisW++)
 		{
-			for (int axisV = 0; axisV < numCptsV; axisV++)
+			for (int axisU = 0; axisU < numCptsU; axisU++)
 			{
-				// Here we do not pass cpts pos into surfaceData to avoid rebuild surface when moving control points.
-				// cpts[axisU][axisV] = mesh_cp_vertices[faceIndex[axisU][axisV] - 1];
-				wts[axisU][axisV] = mesh_cp_weights[faceIndex[axisU][axisV] - 1];
+				for (int axisV = 0; axisV < numCptsV; axisV++)
+				{
+					// Here we do not pass cpts pos into surfaceData to avoid rebuild surface when moving control points.
+					// cpts[axisU][axisV] = mesh_cp_vertices[faceIndex[axisU][axisV] - 1];
+					wts[axisW][axisU][axisV] = mesh_cp_weights[cptsIndex[axisW][axisU][axisV] - 1];
+				}
 			}
 		}
+		mesh_layers[i].weights = wts;
 
-		std::vector<float> knotu, knotv;
-		// switch (i) {
-		// case 0: 
-		// case 1: 
-		// 	knotu = knotz; knotv = knoty; break;
-		// case 2:
-		// case 3:
-		// 	knotu = knotx; knotv = knoty; break;
-		// case 4:
-		// case 5:
-		// 	knotu = knotx; knotv = knotz; break;
-		// }
-		if(i >= 0 && i < numCptx) {
-			knotu = knotz; knotv = knoty;
+		std::vector<float> knotu, knotv, knotw;
+		switch (i) {
+		case 0: 
+			knotu = knotz; knotv = knoty; knotw = knotx; break;
+		case 1:
+			knotu = knotx; knotv = knoty; knotw = knotz; break;
+		case 2:
+			knotu = knotx; knotv = knotz; knotw = knoty; break;
 		}
-		else if(i >= numCptx && i < numCptx + numCptz) {
-			knotu = knotx; knotv = knoty;
-		}
-		else if(i >= numCptx + numCpty && i < numCptx + numCptz + numCpty) {
-			knotu = knotx; knotv = knotz;
-		}
-
-		mesh_surfaces[i] = { faceIndex, wts, knotu, knotv, faceRho };
+		mesh_layers[i].knotU = knotu;
+		mesh_layers[i].knotV = knotv;
+		mesh_layers[i].knotW = knotw;
 	}
 }
 
@@ -395,17 +381,28 @@ void Tessellate()
 		{ 0xff, 0, 0, 0, 0 }
 	};
 
-	for(int i = 0; i < 6; i++)
+	for(int i = 0; i < 3; i++)
 	{
-		NURBSSurfaceData surfData = mesh_surfaces[i];
-		auto& cptsIndex = surfData.cptsIndex;
-		auto& weights = surfData.weights;
-		auto& knotU = surfData.knotU;
-		auto& knotV = surfData.knotV;
-		auto& rho = surfData.patchRho;
+		// NURBSSurfaceData surfData = mesh_surfaces[i];
+		// auto& cptsIndex = surfData.cptsIndex;
+		// auto& weights = surfData.weights;
+		// auto& knotU = surfData.knotU;
+		// auto& knotV = surfData.knotV;
+		// auto& rho = surfData.patchRho;
 
-		int numCptU = cptsIndex.size();
-		int numCptV = cptsIndex[0].size();
+		NURBSLayerData& layerData = mesh_layers[i];
+		auto& cptsIndex = layerData.cptsIndex;
+		auto& weights = layerData.weights;
+		auto& knotU = layerData.knotU;
+		auto& knotV = layerData.knotV;
+		auto& knotW = layerData.knotW;
+		auto& rho = layerData.LayerRho;
+
+		int numCptU = cptsIndex[0].size();
+		int numCptV = cptsIndex[0][0].size();
+		int numCptW = cptsIndex.size();
+
+		int nelU = numCptU - 2, nelV = numCptV - 2, nelW = numCptW - 2;
 
 		OpenGLMesh* surface = nullptr;
 
@@ -418,28 +415,33 @@ void Tessellate()
 		}
 
 		// update surface cvs and weights (STL 2D vector will cause fault)
-		Math::Vector4* surfacecvs = new Math::Vector4[numCptU * numCptV];
-		float* surfacewts = new float[numCptU * numCptV];
-		float* surfacerho = new float[(numCptU - 2) * (numCptV - 2)];
+		Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
+		float* surfacewts = new float[numCptW * numCptU * numCptV];
+		float* surfacerho = new float[nelW * nelU * nelV];
 		uint32_t index;
 
-		for (int m = 0; m < numCptU; ++m) {
-			for (int n = 0; n < numCptV; ++n) {
-				index = m * numCptV + n;
-				surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[m][n] - 1].x;
-				surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[m][n] - 1].y;
-				surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[m][n] - 1].z;
-				// std::cout << mesh_cp_vertices[cptsIndex[m][n] - 1].x << mesh_cp_vertices[cptsIndex[m][n] - 1].y << mesh_cp_vertices[cptsIndex[m][n] - 1].z << std::endl;
-				surfacewts[index] = weights[m][n];
+		for(int s = 0; s < numCptW; s++) {
+			for (int m = 0; m < numCptU; m++) {
+				for (int n = 0; n < numCptV; n++) {
+					index = s * numCptU * numCptV + m * numCptV + n;
+					surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
+					surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
+					surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].z;
+					// std::cout << mesh_cp_vertices[cptsIndex[s][m][n] - 1].x << mesh_cp_vertices[cptsIndex[s][m][n] - 1].y << mesh_cp_vertices[cptsIndex[s][m][n] - 1].z << std::endl;
+					surfacewts[index] = weights[s][m][n];
+				}
 			}
 		}
 
-		for (int m = 0; m < numCptU - 2; ++m) {
-			for (int n = 0; n < numCptV - 2; ++n) {
-				index = m * (numCptV - 2) + n;
-				surfacerho[index] = rho[m][n];
+		for(int s = 0; s < nelW; s++) {
+			for (int m = 0; m < nelU; m++) {
+				for (int n = 0; n < nelV; n++) {
+					index = s * nelU * nelV + m * nelV + n;
+					surfacerho[index] = rho[s][m][n];
+				}
 			}
 		}
+
 
 
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
@@ -448,17 +450,17 @@ void Tessellate()
 
 		glGenBuffers(1, &cptsBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
 
 		glGenBuffers(1, &wtsBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * sizeof(float), surfacewts, GL_STATIC_READ);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(float), surfacewts, GL_STATIC_READ);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
 
 		glGenBuffers(1, &rhoBuffer);
 		glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, (numCptU - 2) * (numCptV - 2) * sizeof(float), surfacerho, GL_STATIC_READ);
+		glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
 		//-------------------------------------TEST PASS------------------------------------------
 
@@ -468,6 +470,7 @@ void Tessellate()
 		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
 		tessellatesurfacemy->SetInt("degreeU", DEGREE);
 		tessellatesurfacemy->SetInt("degreeV", DEGREE);
+		tessellatesurfacemy->SetInt("degreeW", DEGREE);
 		tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
 		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
 		// tessellatesurfacemy->SetFloatArray("weights", &surfacewts[0], numCptU * numCptV);

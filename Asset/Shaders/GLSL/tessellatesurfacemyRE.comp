@@ -47,18 +47,22 @@ layout (std430, binding = 4) buffer rhoBuffer {
 // TODO: Hard code here may cause fault.
 uniform float knotsU[MAX_KNOTS];
 uniform float knotsV[MAX_KNOTS];
+uniform float knotsW[MAX_KNOTS];
 
 uniform int numControlPointsU;
 uniform int numControlPointsV;
+uniform int numControlPointsW;
+uniform int degreeU;
+uniform int degreeV;
+uniform int degreeW;
 // here vertice includes the ones related to knots
 uniform int numVtsBetweenKnotsU;
 uniform int numVtsBetweenKnotsV;
-uniform int degreeU;
-uniform int degreeV;
 
 // vec4 <=> max degree 3 curves
 shared vec4 CoeffsU[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
 shared vec4 CoeffsV[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
+shared vec4 CoeffsW[MAX_ORDER * MAX_SPANS];
 shared float Blossom[MAX_ORDER * MAX_ORDER * MAX_ORDER];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
 
 float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
@@ -137,8 +141,9 @@ void main()
 	int lastspanV		= numControlPointsV - 1;
 	int orderU			= degreeU + 1;
 	int orderV			= degreeV + 1;
-	int spanU, spanV, cpU, cpV;
-	int index1, index2;
+
+	int spanU, spanV, spanW, cpU, cpV, cpW;
+	int index1, index2, index3;
 
 	// STEP 1: calculate coefficients
 	if (gl_LocalInvocationIndex == 0)
@@ -185,6 +190,29 @@ void main()
 					CoeffsV[index2] = cf;
 				} else {
 					CoeffsV[index2] = vec4(0.0);
+				}
+			}
+		}
+
+		// NOTE: don't refactor this into a function, it won't work!!!
+		for (int spanW = degreeW; spanW < numControlPointsW; ++spanW)
+		{
+			for (int k = 0; k <= min(degreeW, spanW); ++k)
+			{
+				index1 = spanW * MAX_ORDER + k;
+
+				if (spanW - k < numControlPointsW)
+				{
+					cpW = spanW - k;
+
+					cf.x = CalculateCoeff(cpW, degreeW, 0, spanW, knotsW); // 1
+					cf.y = CalculateCoeff(cpW, degreeW, 1, spanW, knotsW); // u
+					cf.z = CalculateCoeff(cpW, degreeW, 2, spanW, knotsW); // u2
+					cf.w = CalculateCoeff(cpW, degreeW, 3, spanW, knotsW); // u3
+
+					CoeffsW[index1] = cf;
+				} else {
+					CoeffsW[index1] = vec4(0.0);
 				}
 			}
 		}
