@@ -144,7 +144,7 @@ void main()
 	if (gl_LocalInvocationIndex == 0)
 	{
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanU = degreeU; spanU < numControlPointsU ; ++spanU)
+		for (int spanU = degreeU; spanU < numControlPointsU; ++spanU)
 		{
 			for (int k = 0; k <= min(degreeU, spanU); ++k)
 			{

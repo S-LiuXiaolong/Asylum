@@ -38,6 +38,12 @@ struct NURBSSurfaceData
 	std::vector<std::vector<float>> patchRho;
 };
 
+// TODO: Modify all codes about NURBSSurfaceData
+struct NURBSElementData
+{
+	std::vector<std::vector<uint32_t>> cptsIndex;
+};
+
 NURBSSurfaceData mesh_surfaces[6];
 
 // sample variables
