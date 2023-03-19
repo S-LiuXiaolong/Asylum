@@ -402,7 +402,7 @@ void Tessellate()
 		int numCptV = cptsIndex[0][0].size();
 		int numCptW = cptsIndex.size();
 
-		int nelU = numCptU - 2, nelV = numCptV - 2, nelW = numCptW - 2;
+		int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
 
 		OpenGLMesh* surface = nullptr;
 
@@ -442,8 +442,6 @@ void Tessellate()
 			}
 		}
 
-
-
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
 		//-------------------------------------TEST PASS------------------------------------------
@@ -468,20 +466,21 @@ void Tessellate()
 		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
 		tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
 		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
+		tessellatesurfacemy->SetInt("numControlPointsW", numCptW);
 		tessellatesurfacemy->SetInt("degreeU", DEGREE);
 		tessellatesurfacemy->SetInt("degreeV", DEGREE);
 		tessellatesurfacemy->SetInt("degreeW", DEGREE);
 		tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
 		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
-		// tessellatesurfacemy->SetFloatArray("weights", &surfacewts[0], numCptU * numCptV);
-		// tessellatesurfacemy->SetVectorArray("controlPoints", &surfacecvs[0][0], numCptU * numCptV);
+		tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
 
+		int surfaceNum = nelW + 1;
 		tessellatesurfacemy->Begin();
 		{
 			// groupnum = numCpt - DEGREE
 			// numknots = numCpt + DEGREE + 1
 			// FIXME: change here the work group
-			glDispatchCompute(numCptU - DEGREE, numCptV - DEGREE, 2);
+			glDispatchCompute(nelU, nelV, surfaceNum);
 		}
 		tessellatesurfacemy->End();
 
@@ -490,10 +489,10 @@ void Tessellate()
 
 		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
 
-		int numSegmentsU = numSegBetweenKnotsU * (numCptU - DEGREE);
-		int numSegmentsV = numSegBetweenKnotsV * (numCptV - DEGREE);
+		int numSegmentsU = numSegBetweenKnotsU * nelU;
+		int numSegmentsV = numSegBetweenKnotsV * nelV;
 
-		surface->GetAttributeTable()->IndexCount = numSegmentsU * numSegmentsV * 6;
+		surface->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
 
 		delete[] surfacecvs;
 

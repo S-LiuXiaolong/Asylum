@@ -11,6 +11,7 @@
 #define MAX_KNOTS	101
 #define MAX_SPANS	100
 
+// FIXME: Normal is not needed. We don't cast a light on the NURBS.
 struct Vertex
 {
 	vec4 Position;
@@ -62,7 +63,7 @@ uniform int numVtsBetweenKnotsV;
 // vec4 <=> max degree 3 curves
 shared vec4 CoeffsU[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
 shared vec4 CoeffsV[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
-shared vec4 CoeffsW[MAX_ORDER * MAX_SPANS];
+shared vec4 CoeffsW[MAX_ORDER * MAX_SPANS]; // MAX_ORDER * MAX_SPANS
 shared float Blossom[MAX_ORDER * MAX_ORDER * MAX_ORDER];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
 
 float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
@@ -133,14 +134,17 @@ void main()
 {
 	vec4 cf;
 
-	int numknotsU		= numControlPointsU + degreeU + 1;
-	int numknotsV		= numControlPointsV + degreeV + 1;
 	int numSegBetweenKnotsU	= numVtsBetweenKnotsU - 1;
 	int numSegBetweenKnotsV	= numVtsBetweenKnotsV - 1;
+	int numknotsU		= numControlPointsU + degreeU + 1;
+	int numknotsV		= numControlPointsV + degreeV + 1;
+	int numknotsW		= numControlPointsW + degreeW + 1;
 	int lastspanU		= numControlPointsU - 1;
 	int lastspanV		= numControlPointsV - 1;
+	int lastspanW		= numControlPointsW - 1;
 	int orderU			= degreeU + 1;
 	int orderV			= degreeV + 1;
+	int orderW			= degreeW + 1;
 
 	int spanU, spanV, spanW, cpU, cpV, cpW;
 	int index1, index2, index3;
@@ -199,20 +203,20 @@ void main()
 		{
 			for (int k = 0; k <= min(degreeW, spanW); ++k)
 			{
-				index1 = spanW * MAX_ORDER + k;
+				index3 = spanW * MAX_ORDER + k;
 
 				if (spanW - k < numControlPointsW)
 				{
 					cpW = spanW - k;
 
 					cf.x = CalculateCoeff(cpW, degreeW, 0, spanW, knotsW); // 1
-					cf.y = CalculateCoeff(cpW, degreeW, 1, spanW, knotsW); // u
-					cf.z = CalculateCoeff(cpW, degreeW, 2, spanW, knotsW); // u2
-					cf.w = CalculateCoeff(cpW, degreeW, 3, spanW, knotsW); // u3
+					cf.y = CalculateCoeff(cpW, degreeW, 1, spanW, knotsW); // w
+					cf.z = CalculateCoeff(cpW, degreeW, 2, spanW, knotsW); // w2
+					cf.w = CalculateCoeff(cpW, degreeW, 3, spanW, knotsW); // w3
 
-					CoeffsW[index1] = cf;
+					CoeffsW[index3] = cf;
 				} else {
-					CoeffsW[index1] = vec4(0.0);
+					CoeffsW[index3] = vec4(0.0);
 				}
 			}
 		}
@@ -222,8 +226,8 @@ void main()
 
 	// STEP 2: fill vertex buffer
 	vec4 pos;
-	vec4 polyU, polyV;
-	vec4 dUpoly, dVpoly;
+	vec4 polyU, polyV, polyW;
+	vec4 dUpoly, dVpoly, dWpoly;
 	vec3 tangent, bitangent;
 
 	ivec2 loc = ivec2(gl_LocalInvocationID.xy);
@@ -234,10 +238,10 @@ void main()
 	int endU = min(startU + elemsperitemU, numVtsBetweenKnotsU);
 	int endV = min(startV + elemsperitemV, numVtsBetweenKnotsV);
 
-	float u, v, nom, denom, weight;
-	float c, cdU, cdV;
-	vec3 dUf, dVf;
-	float dUg, dVg;
+	float u, v, w, nom, denom, weight;
+	float c, cdU, cdV, cdW;
+	vec3 dUf, dVf, dWf;
+	float dUg, dVg, dWg;
 
 	int numVerticesU = numVtsBetweenKnotsU * (numControlPointsU - degreeU);
 	int numVerticesV = numVtsBetweenKnotsV * (numControlPointsV - degreeV);
@@ -248,9 +252,26 @@ void main()
 
 	int groupIDx = int(gl_WorkGroupID.x);
 	int groupIDy = int(gl_WorkGroupID.y);
+	int groupIDz = int(gl_WorkGroupID.z);
 
 	float firstU = knotsU[degreeU + groupIDx];
 	float nextU = knotsU[degreeU + groupIDx + 1];
+	float firstV = knotsV[degreeV + groupIDy];
+	float lastV = knotsV[degreeV + groupIDy + 1];
+	// float firstW = knotsW[degreeW + groupIDz];
+	// float lastW = knotsW[degreeW + groupIDz + 1];
+	
+	// for (spanW = 0; spanW < lastspanW; ++spanW) {
+	// 	if ((knotsW[spanW] <= w && w < knotsW[spanW + 1]))
+	// 		break;
+	// }
+	w = knotsW[degreeW + groupIDz];
+
+	polyW = vec4(1.0, w, w * w, w * w * w);
+	dWpoly = vec4(0.0, 1.0, 2.0 * w, 3.0 * w * w);
+
+	spanW = degreeW + groupIDz;
+
 	for(int i = startU; i < endU; i++)
 	{
 		u = float(i) / float(numSegBetweenKnotsU);
@@ -264,8 +285,6 @@ void main()
 				break;
 		}
 
-		float firstV = knotsV[degreeV + groupIDy];
-		float lastV = knotsV[degreeV + groupIDy + 1];
 		for(int j = startV; j < endV; j++)
 		{
 			v = float(j) / float(numSegBetweenKnotsV);
@@ -281,54 +300,65 @@ void main()
 
 			// sum contributions
 			pos = vec4(0.0);
-			dUf = vec3(0.0);
-			dVf = vec3(0.0);
+			// dUf = vec3(0.0);
+			// dVf = vec3(0.0);
+			// dWf = vec3(0.0);
 
 			denom = 0.0;
-			dUg = 0.0;
-			dVg = 0.0;
+			// dUg = 0.0;
+			// dVg = 0.0;
+			// dWg = 0.0;
 
-			for (int k = 0; k < orderU; ++k) {
-				for (int l = 0; l < orderV; ++l) {
-					index1 = spanU * MAX_ORDER + k;
-					index2 = spanV * MAX_ORDER + l;
+			for (int m = 0; m < orderV; ++m) {
+				for (int k = 0; k < orderU; ++k) {
+					for (int l = 0; l < orderV; ++l) {
+						index1 = spanW * MAX_ORDER + m;
+						index2 = spanU * MAX_ORDER + k;
+						index3 = spanV * MAX_ORDER + l;
 
-					cpU = (spanU - k) % numControlPointsU;
-					cpV = (spanV - l) % numControlPointsV;
+						cpW = (spanW - m) % numControlPointsW;
+						cpU = (spanU - k) % numControlPointsU;
+						cpV = (spanV - l) % numControlPointsV;
 
-					// cf = controlPoints[cpU * numControlPointsV + cpV];
-					cf = controlPointsBuffer.Position[cpU * numControlPointsV + cpV];
-					// weight = weights[cpU * numControlPointsV + cpV];
-					weight = weightsBuffer.data[cpU * numControlPointsV + cpV];
+						// cf = controlPoints[cpU * numControlPointsV + cpV];
+						cf = controlPointsBuffer.Position[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
+						// weight = weights[cpU * numControlPointsV + cpV];
+						weight = weightsBuffer.data[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
 
-					c = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], polyV) * weight;
-					cdU = dot(CoeffsU[index1], dUpoly) * dot(CoeffsV[index2], polyV) * weight;
-					cdV = dot(CoeffsU[index1], polyU) * dot(CoeffsV[index2], dVpoly) * weight;
+						c = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
+						// cdW = dot(CoeffsW[index1], dWpoly) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
+						// cdU = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], dUpoly) * dot(CoeffsV[index3], polyV) * weight;
+						// cdV = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], dVpoly) * weight;
 
-					pos += cf * c;	// f
-					denom += c;		// g
+						pos += cf * c;	// f
+						denom += c;		// g
 
-					dUg += cdU;
-					dVg += cdV;
+						// dUg += cdU;
+						// dVg += cdV;
+						// dWg += cdW;
 
-					dUf += cf.xyz * cdU;
-					dVf += cf.xyz * cdV;
+						// dUf += cf.xyz * cdU;
+						// dVf += cf.xyz * cdV;
+						// dWf += cf.xyz * cdW;
+					}
 				}
 			}
 
-			tangent = (dUf * denom - dUg * pos.xyz) / (denom * denom);
-			bitangent = (dVf * denom - dVg * pos.xyz) / (denom * denom);
+			// tangent = (dUf * denom - dUg * pos.xyz) / (denom * denom);
+			// bitangent = (dVf * denom - dVg * pos.xyz) / (denom * denom);
 			pos /= denom;
 
 			pos.w = 1.0;
-			index1 = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			// TODO: Save point
+			index2 = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 
-			surfacevertices.data[index1].Position = pos;
-			surfacevertices.data[index1].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
+			surfacevertices.data[index2].Position = pos;
+			// surfacevertices.data[index2].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
+			surfacevertices.data[index2].Normal = vec4(0.0);
 
-			index2 = groupIDx * (numControlPointsV - degreeV) + groupIDy;
-			float elementRho = elementRhoBuffer.data[index2];
-			surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
+			index3 = groupIDx * (numControlPointsV - degreeV) + groupIDy;
+			float elementRho = elementRhoBuffer.data[index3];
+			surfacevertices.data[index2].Color = vec4(elementRho, elementRho, elementRho, 1.0);
 		}
 	}
 
