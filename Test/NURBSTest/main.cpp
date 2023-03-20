@@ -480,7 +480,7 @@ void Tessellate()
 			// groupnum = numCpt - DEGREE
 			// numknots = numCpt + DEGREE + 1
 			// FIXME: change here the work group
-			glDispatchCompute(nelU, nelV, surfaceNum);
+			glDispatchCompute(nelU, nelV, nelW);
 		}
 		tessellatesurfacemy->End();
 
