@@ -474,7 +474,7 @@ void Tessellate()
 		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
 		tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
 
-		int surfaceNum = nelW + 1;
+		int surfaceNum = nelW * 2;
 		tessellatesurfacemy->Begin();
 		{
 			// groupnum = numCpt - DEGREE
@@ -613,7 +613,7 @@ void Render(float alpha, float elapsedtime)
 	rendersurface->Begin();
 	{
 		// surface->DrawSubset(0);
-		for (int i = 0; i < 6; i++)
+		for (int i = 0; i < 3; i++)
 		{
 			surfacegroup[i]->DrawSubset(0);
 		}

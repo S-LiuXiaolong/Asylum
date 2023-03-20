@@ -153,7 +153,7 @@ void main()
 	if (gl_LocalInvocationIndex == 0)
 	{
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanU = degreeU; spanU < numControlPointsU; ++spanU)
+		for (int spanU = 0; spanU < numknotsU - 1; ++spanU)
 		{
 			for (int k = 0; k <= min(degreeU, spanU); ++k)
 			{
@@ -176,7 +176,7 @@ void main()
 		}
 
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanV = degreeV; spanV < numControlPointsV; ++spanV)
+		for (int spanV = 0; spanV < numknotsV - 1; ++spanV)
 		{
 			for (int k = 0; k <= min(degreeV, spanV); ++k)
 			{
@@ -199,7 +199,7 @@ void main()
 		}
 
 		// NOTE: don't refactor this into a function, it won't work!!!
-		for (int spanW = degreeW; spanW < numControlPointsW; ++spanW)
+		for (int spanW = 0; spanW < numknotsW - 1; ++spanW)
 		{
 			for (int k = 0; k <= min(degreeW, spanW); ++k)
 			{
@@ -257,7 +257,7 @@ void main()
 	float firstU = knotsU[degreeU + groupIDx];
 	float nextU = knotsU[degreeU + groupIDx + 1];
 	float firstV = knotsV[degreeV + groupIDy];
-	float lastV = knotsV[degreeV + groupIDy + 1];
+	float nextV = knotsV[degreeV + groupIDy + 1];
 	// float firstW = knotsW[degreeW + groupIDz];
 	// float lastW = knotsW[degreeW + groupIDz + 1];
 	
@@ -265,12 +265,17 @@ void main()
 	// 	if ((knotsW[spanW] <= w && w < knotsW[spanW + 1]))
 	// 		break;
 	// }
-	w = knotsW[degreeW + groupIDz];
 
+	// FIXME: Modify here to display all faces correctly
+	if(groupIDz % 2 == 0)
+		spanW = degreeW + int(groupIDz / 2);
+	else if(groupIDz % 2 == 1)
+		spanW = degreeW + int(groupIDz / 2) + 1;
+
+	// spanW = degreeW + int(groupIDz / 2);
+	w = knotsW[spanW];
 	polyW = vec4(1.0, w, w * w, w * w * w);
 	dWpoly = vec4(0.0, 1.0, 2.0 * w, 3.0 * w * w);
-
-	spanW = degreeW + groupIDz;
 
 	for(int i = startU; i < endU; i++)
 	{
@@ -288,7 +293,7 @@ void main()
 		for(int j = startV; j < endV; j++)
 		{
 			v = float(j) / float(numSegBetweenKnotsV);
-			v = mix(firstV, lastV, v);
+			v = mix(firstV, nextV, v);
 
 			polyV = vec4(1.0, v, v * v, v * v * v);
 			dVpoly = vec4(0.0, 1.0, 2.0 * v, 3.0 * v * v);
@@ -300,16 +305,10 @@ void main()
 
 			// sum contributions
 			pos = vec4(0.0);
-			// dUf = vec3(0.0);
-			// dVf = vec3(0.0);
-			// dWf = vec3(0.0);
 
 			denom = 0.0;
-			// dUg = 0.0;
-			// dVg = 0.0;
-			// dWg = 0.0;
 
-			for (int m = 0; m < orderV; ++m) {
+			for (int m = 0; m < orderW; ++m) {
 				for (int k = 0; k < orderU; ++k) {
 					for (int l = 0; l < orderV; ++l) {
 						index1 = spanW * MAX_ORDER + m;
@@ -320,45 +319,29 @@ void main()
 						cpU = (spanU - k) % numControlPointsU;
 						cpV = (spanV - l) % numControlPointsV;
 
-						// cf = controlPoints[cpU * numControlPointsV + cpV];
 						cf = controlPointsBuffer.Position[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
-						// weight = weights[cpU * numControlPointsV + cpV];
 						weight = weightsBuffer.data[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
 
 						c = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
-						// cdW = dot(CoeffsW[index1], dWpoly) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
-						// cdU = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], dUpoly) * dot(CoeffsV[index3], polyV) * weight;
-						// cdV = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], dVpoly) * weight;
 
 						pos += cf * c;	// f
 						denom += c;		// g
-
-						// dUg += cdU;
-						// dVg += cdV;
-						// dWg += cdW;
-
-						// dUf += cf.xyz * cdU;
-						// dVf += cf.xyz * cdV;
-						// dWf += cf.xyz * cdW;
 					}
 				}
 			}
 
-			// tangent = (dUf * denom - dUg * pos.xyz) / (denom * denom);
-			// bitangent = (dVf * denom - dVg * pos.xyz) / (denom * denom);
 			pos /= denom;
 
 			pos.w = 1.0;
 			// TODO: Save point
-			index2 = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			index1 = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 
-			surfacevertices.data[index2].Position = pos;
-			// surfacevertices.data[index2].Normal = vec4(normalize(cross(bitangent, tangent)), 0.0);
-			surfacevertices.data[index2].Normal = vec4(0.0);
+			surfacevertices.data[index1].Position = pos;
+			surfacevertices.data[index1].Normal = vec4(0.0);
 
-			index3 = groupIDx * (numControlPointsV - degreeV) + groupIDy;
-			float elementRho = elementRhoBuffer.data[index3];
-			surfacevertices.data[index2].Color = vec4(elementRho, elementRho, elementRho, 1.0);
+			index2 = (groupIDz / 2) * (numControlPointsU - degreeU) * (numControlPointsV - degreeV) + groupIDx * (numControlPointsV - degreeV) + groupIDy;
+			float elementRho = elementRhoBuffer.data[index2];
+			surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
 		}
 	}
 
@@ -371,15 +354,15 @@ void main()
 	{
 		for(int j = startV; j < endV; j++)
 		{
-			index1 = (groupIDx * numSegBetweenKnotsU + i) * numSegmentsV + groupIDy * numSegBetweenKnotsV + j;
+			index1 = groupIDz * numSegmentsU * numSegmentsV + (groupIDx * numSegBetweenKnotsU + i) * numSegmentsV + groupIDy * numSegBetweenKnotsV + j;
 
-			surfaceindices.data[index1].Indices[0] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
-			surfaceindices.data[index1].Indices[1] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
-			surfaceindices.data[index1].Indices[2] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+			surfaceindices.data[index1].Indices[0] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			surfaceindices.data[index1].Indices[1] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+			surfaceindices.data[index1].Indices[2] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
 
-			surfaceindices.data[index1].Indices[3] = (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
-			surfaceindices.data[index1].Indices[4] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
-			surfaceindices.data[index1].Indices[5] = (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			surfaceindices.data[index1].Indices[3] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+			surfaceindices.data[index1].Indices[4] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+			surfaceindices.data[index1].Indices[5] = groupIDz * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 		}
 	}
 }
