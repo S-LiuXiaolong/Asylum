@@ -383,13 +383,6 @@ void Tessellate()
 
 	for(int i = 0; i < 3; i++)
 	{
-		// NURBSSurfaceData surfData = mesh_surfaces[i];
-		// auto& cptsIndex = surfData.cptsIndex;
-		// auto& weights = surfData.weights;
-		// auto& knotU = surfData.knotU;
-		// auto& knotV = surfData.knotV;
-		// auto& rho = surfData.patchRho;
-
 		NURBSLayerData& layerData = mesh_layers[i];
 		auto& cptsIndex = layerData.cptsIndex;
 		auto& weights = layerData.weights;
@@ -477,9 +470,6 @@ void Tessellate()
 		int surfaceNum = nelW * 2;
 		tessellatesurfacemy->Begin();
 		{
-			// groupnum = numCpt - DEGREE
-			// numknots = numCpt + DEGREE + 1
-			// FIXME: change here the work group
 			glDispatchCompute(nelU, nelV, nelW);
 		}
 		tessellatesurfacemy->End();
