@@ -9,16 +9,24 @@ include_directories(.)
 add_library(imgui)
 target_sources(imgui PRIVATE
     imgui.cpp
+    backends/imgui_impl_opengl3.cpp
+    backends/imgui_impl_win32.cpp
 )
 
 set(MYGE_EXTERNAL_ROOT ${PROJECT_BINARY_DIR}/../..)
 
-set_target_properties(imgui
-PROPERTIES PUBLIC_HEADER imgui.h
+set(HEADER_FILES
+    imgui.h
+    backends/imgui_impl_opengl3.h
+    backends/imgui_impl_win32.h
+)
+
+set_target_properties(imgui PROPERTIES  
+    PUBLIC_HEADER "${HEADER_FILES}"
 )
 
 install(TARGETS imgui
-    PUBLIC_HEADER DESTINATION ${MYGE_EXTERNAL_ROOT}/include/imgui
+PUBLIC_HEADER DESTINATION ${MYGE_EXTERNAL_ROOT}/include/imgui
     ARCHIVE DESTINATION ${MYGE_EXTERNAL_ROOT}/lib/Debug
     CONFIGURATIONS Debug
 )
