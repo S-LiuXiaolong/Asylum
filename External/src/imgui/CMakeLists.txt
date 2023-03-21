@@ -8,6 +8,10 @@ include_directories(.)
 
 add_library(imgui)
 target_sources(imgui PRIVATE
+    imgui_demo.cpp
+    imgui_draw.cpp
+    imgui_tables.cpp
+    imgui_widgets.cpp
     imgui.cpp
     backends/imgui_impl_opengl3.cpp
     backends/imgui_impl_win32.cpp
@@ -17,6 +21,7 @@ set(MYGE_EXTERNAL_ROOT ${PROJECT_BINARY_DIR}/../..)
 
 set(HEADER_FILES
     imgui.h
+    imconfig.h
     backends/imgui_impl_opengl3.h
     backends/imgui_impl_win32.h
 )

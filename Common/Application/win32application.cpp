@@ -12,6 +12,15 @@
 #include <stdlib.h>
 #include <crtdbg.h>
 
+#ifdef IMGUI
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+
+#ifdef OPENGL
+#	include "imgui_impl_opengl3.h"
+#endif
+#endif
+
 #ifdef _DEBUG
 #	define ENABLE_VALIDATION
 #endif
@@ -25,10 +34,22 @@ static _CrtMemState _memstate;
 
 static Win32Application* _app = nullptr;
 
+#ifdef IMGUI
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 static LRESULT WINAPI WndProc(HWND hWnd, unsigned int msg, WPARAM wParam, LPARAM lParam)
 {
 	if (hWnd != _app->hwnd)
 		return DefWindowProc(hWnd, msg, wParam, lParam);
+
+	#ifdef IMGUI
+	ImGuiIO& io = ImGui::GetIO();
+	ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+	if (io.WantCaptureMouse && (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP || msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP || msg == WM_MBUTTONDOWN || msg == WM_MBUTTONUP || msg == WM_MOUSEWHEEL || msg == WM_MOUSEMOVE))
+	{
+		return TRUE;
+	}
+	#endif
 
 	switch (msg) {
 	case WM_CLOSE:
@@ -300,6 +321,16 @@ void Win32Application::InitWindow()
 		MessageBox(NULL, "Could not create window", "Fatal error", MB_OK);
 		exit(1);
 	}
+
+	#ifdef IMGUI
+    // Setup Dear ImGui binding
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+    //Init Win32
+    ImGui_ImplWin32_Init(hwnd);
+	#endif
 }
 
 void Win32Application::AdjustWindow(RECT& out, uint32_t& width, uint32_t& height, DWORD style, DWORD exstyle, bool menu)
@@ -537,6 +568,17 @@ bool Win32Application::InitializeOpenGL(bool core)
 		glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, 0, GL_TRUE);
 		glDebugMessageCallback(ReportGLError, 0);
 	}
+
+	#ifdef IMGUI
+    //Init OpenGL Imgui Implementation
+    // GL 3.0 + GLSL 130
+    const char* glsl_version = "#version 130";
+    ImGui_ImplOpenGL3_Init(glsl_version);
+
+	// FIXME
+    // Setup style
+    ImGui::StyleColorsClassic();
+	#endif
 
 	return true;
 #endif
@@ -1310,6 +1352,7 @@ void Win32Application::Run()
 	QueryPerformanceCounter(&qwTime);
 	last = (qwTime.QuadPart % tickspersec) / (double)tickspersec;
 
+	// Main loop
 	while (msg.message != WM_QUIT) {
 		QueryPerformanceCounter(&qwTime);
 		current = (qwTime.QuadPart % tickspersec) / (double)tickspersec;

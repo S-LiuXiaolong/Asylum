@@ -12,6 +12,10 @@
 #include "gl4ext.h"
 #include "basiccamera.h"
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_opengl3.h"
+
 // helper macros
 #define TITLE				"NURBS tesselation"
 #define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
@@ -555,6 +559,16 @@ void Update(float delta)
 
 void Render(float alpha, float elapsedtime)
 {
+	// Start the Dear ImGui frame
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+
+	//show Main Window
+	ImGui::ShowDemoWindow();
+	// Rendering
+	ImGui::Render();
+
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
@@ -626,12 +640,14 @@ void Render(float alpha, float elapsedtime)
 	if (err != GL_NO_ERROR)
 		std::cout << "Error\n";
 
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
 	app->Present();
 }
 
 int main(int argc, char* argv[])
 {
-	app = Application::Create(768, 768);
+	app = Application::Create(1360, 768);
 	app->SetTitle(TITLE);
 
 	if (!app->InitializeDriverInterface(GraphicsAPIOpenGL)) {

@@ -10,6 +10,10 @@
 #include "gl4ext.h"
 #include "basiccamera.h"
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_opengl3.h"
+
 #define SHADOWMAP_SIZE		512
 
 // helper macros
@@ -218,6 +222,10 @@ void UninitScene()
 	GL_SAFE_DELETE_TEXTURE(wood);
 	GL_SAFE_DELETE_TEXTURE(helptext);
 
+	// Cleanup imgui
+	ImGui_ImplOpenGL3_Shutdown();
+	ImGui::DestroyContext();
+
 	OpenGLContentManager().Release();
 }
 
@@ -246,6 +254,15 @@ void Update(float delta)
 
 void Render(float alpha, float elapsedtime)
 {
+	// Start the Dear ImGui frame
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+	//show Main Window
+	ImGui::ShowDemoWindow();
+	// Rendering
+	ImGui::Render();
+
 	Math::Matrix world, view, proj;
 	Math::Matrix lightview, lightproj;
 	Math::Matrix viewproj, lightviewproj;
@@ -454,6 +471,8 @@ void Render(float alpha, float elapsedtime)
 
 	if (err != GL_NO_ERROR)
 		std::cout << "Error\n";
+
+	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
 	app->Present();
 }

@@ -14,6 +14,7 @@ include_directories("${PROJECT_SOURCE_DIR}/Common/Utility")
 
 include_directories("${PROJECT_SOURCE_DIR}/External/include")
 include_directories("${PROJECT_SOURCE_DIR}/External/include/OpenGL")
+include_directories("${PROJECT_SOURCE_DIR}/External/include/imgui")
 
 IF(${WIN32})
     add_definitions(/D _CRT_SECURE_NO_WARNINGS)
@@ -25,6 +26,7 @@ include_directories("${MYGE_EXTERNAL_ROOT}/include")
 set(MYGE_EXTERNAL_LIBRARY_PATH ${MYGE_EXTERNAL_ROOT}/lib)
 
 add_definitions(/D OPENGL)
+add_definitions(/D IMGUI)
 
 add_subdirectory(Common)
 add_subdirectory(Framework)
