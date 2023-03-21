@@ -38,7 +38,7 @@ struct NURBSSurfaceData
 	std::vector<std::vector<float>> patchRho;
 };
 
-// FIXME: I need more thinking about NURBS
+
 struct NURBSLayerData
 {
 	std::vector<std::vector<std::vector<uint32_t>>> cptsIndex;
@@ -50,7 +50,7 @@ struct NURBSLayerData
 
 // NURBSSurfaceData mesh_surfaces[6];
 std::vector<NURBSSurfaceData> mesh_surfaces;
-// TODO
+
 NURBSLayerData mesh_layers[3];
 
 // sample variables

@@ -12,13 +12,17 @@ include_directories("${PROJECT_SOURCE_DIR}/Common/Hash")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Physics")
 include_directories("${PROJECT_SOURCE_DIR}/Common/Utility")
 
-include_directories("${PROJECT_SOURCE_DIR}/External/Include")
-include_directories("${PROJECT_SOURCE_DIR}/External/Include/OpenGL")
+include_directories("${PROJECT_SOURCE_DIR}/External/include")
+include_directories("${PROJECT_SOURCE_DIR}/External/include/OpenGL")
 
 IF(${WIN32})
     add_definitions(/D _CRT_SECURE_NO_WARNINGS)
     set(ASYLUM_TARGET_PLATFORM "Windows")
 ENDIF(${WIN32})
+
+set(MYGE_EXTERNAL_ROOT ${PROJECT_SOURCE_DIR}/External)
+include_directories("${MYGE_EXTERNAL_ROOT}/include")
+set(MYGE_EXTERNAL_LIBRARY_PATH ${MYGE_EXTERNAL_ROOT}/lib)
 
 add_definitions(/D OPENGL)
 
