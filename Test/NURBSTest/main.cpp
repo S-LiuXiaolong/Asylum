@@ -543,6 +543,7 @@ void UninitScene()
 	OpenGLContentManager().Release();
 }
 
+// FIXME
 void Tessellate()
 {
 	if (!alreadySetupGeom)
