@@ -1,4 +1,3 @@
-
 #pragma comment(lib, "OpenGL32.lib")
 #pragma comment(lib, "GLU32.lib")
 #pragma comment(lib, "winmm.lib")
@@ -7,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <io.h>
+#include <queue>
 
 #include "application.h"
 #include "gl4ext.h"
@@ -16,21 +17,17 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_opengl3.h"
 
+// Enable High Performance Graphics while using Integrated Graphics. 
+extern "C" {
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; // Nvidia 
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1; // AMD
+}
+
 // helper macros
 #define TITLE				"NURBS tesselation"
 #define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
 
 #define DEGREE 2
-
-// FIXME: Delete
-// control constants
-#define MAX_NUM_SEGMENTS 1000
-const GLuint NumControlVertices				= 7;
-const GLuint NumControlIndices				= (NumControlVertices - 1) * 2;
-const GLuint MaxSplineVertices				= MAX_NUM_SEGMENTS + 1;
-const GLuint MaxSplineIndices				= (MaxSplineVertices - 1) * 4;
-const GLuint MaxSurfaceVertices				= MaxSplineVertices * MaxSplineVertices;
-const GLuint MaxSurfaceIndices				= (MaxSplineVertices - 1) * (MaxSplineVertices - 1) * 6;
 
 // TODO: Maybe put the surface and whole-mesh class into another file?
 struct NURBSSurfaceData
@@ -72,6 +69,7 @@ float				selectiondx			= 0;
 float				selectiondy			= 0;
 int					numSegBetweenKnotsU = 1;
 int					numSegBetweenKnotsV = 1;
+float				elementRhoThreshold = 0.1f;
 bool				wireframe			= false;
 
 void Tessellate();
@@ -191,11 +189,48 @@ void build_surface()
 	}
 }
 
+int GetFileNum(const std::string& inPath)
+{
+	int fileNum = 0;
+
+	std::vector<std::string> pathVec;
+	std::queue<std::string> q;
+	q.push(inPath);
+
+	while (!q.empty())
+	{
+		std::string item = q.front(); q.pop();
+
+		std::string path = item + "\\*";
+		struct _finddata_t fileinfo;
+		auto handle = _findfirst(path.c_str(), &fileinfo);
+		if (handle == -1) continue;
+
+		while (!_findnext(handle, &fileinfo))
+		{
+			if (fileinfo.attrib & _A_SUBDIR)
+			{
+				if (strcmp(fileinfo.name, ".") == 0 || strcmp(fileinfo.name, "..") == 0)continue;
+				q.push(item + "\\" + fileinfo.name);
+			}
+			else
+			{
+				fileNum++;
+				pathVec.push_back(item + "\\" + fileinfo.name);
+			}
+		}
+		_findclose(handle);
+	}
+
+	return fileNum;
+}
+
+
 void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_big/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -206,16 +241,16 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_big/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_big/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_big/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
@@ -227,7 +262,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_big/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -243,8 +278,9 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
 	std::vector<float> buffer_rho;
-	read_float("../../../Asset/rho.bin", buffer_rho);
+	read_float("../../../Asset/matlab_big/rho.bin", buffer_rho);
 	for (int i = 0; i < nelx; i++)
 	{
 		std::vector<std::vector<float>> face;
@@ -309,6 +345,33 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer)
 		// printf("%f\n", temp);
 		buffer.push_back(temp);
 	}
+}
+
+void imguiSetup()
+{
+	// TODO: Add all imgui widget here.
+	//show Main Window
+	ImGui::ShowDemoWindow();
+
+    if (ImGui::CollapsingHeader("Style Configuration"))
+    {
+        // if (ImGui::TreeNode("Style"))
+        {
+            ImGui::ShowStyleEditor();
+            // ImGui::TreePop();
+            ImGui::Spacing();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Display Control"))
+    {
+		ImGui::SeparatorText("Inputs");
+        {
+            ImGui::InputFloat("Element Display Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
+			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
+			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
+        }
+    }
 }
 
 bool InitScene()
@@ -400,12 +463,20 @@ void Tessellate()
 		int numCptW = cptsIndex.size();
 
 		int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
+		int surfaceNum = nelW * 2;
+
+		int numSegmentsU = numSegBetweenKnotsU * nelU;
+		int numSegmentsV = numSegBetweenKnotsV * nelV;
+		int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
+		int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
 
 		OpenGLMesh* surface = nullptr;
 
 		// create surface
 		// FIXME: How to get MaxSurfaceVertices and Indices?
-		// FIXME: Hard-codes here make fault.
+		// FIXME: Hard-codes here makes fault.
+		int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
+		int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
 		if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
 			MYERROR("Could not create surface");
 			return;
@@ -471,7 +542,6 @@ void Tessellate()
 		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
 		tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
 
-		int surfaceNum = nelW * 2;
 		tessellatesurfacemy->Begin();
 		{
 			glDispatchCompute(nelU, nelV, nelW);
@@ -482,9 +552,6 @@ void Tessellate()
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 
 		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
-
-		int numSegmentsU = numSegBetweenKnotsU * nelU;
-		int numSegmentsV = numSegBetweenKnotsV * nelV;
 
 		surface->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
 
@@ -564,8 +631,8 @@ void Render(float alpha, float elapsedtime)
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
-	//show Main Window
-	ImGui::ShowDemoWindow();
+	imguiSetup();
+
 	// Rendering
 	ImGui::Render();
 
@@ -581,7 +648,6 @@ void Render(float alpha, float elapsedtime)
 	Math::Color	outsidecolor(0.75f, 0.75f, 0.8f, 1);
 	Math::Color	insidecolor(1, 0.66f, 0.066f, 1);
 
-	// render grid, control polygon and curve
 	Math::MatrixIdentity(world);
 
 	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
@@ -613,6 +679,8 @@ void Render(float alpha, float elapsedtime)
 	rendersurface->SetVector("outsideColor", outsidecolor);
 	rendersurface->SetVector("insideColor", insidecolor);
 	rendersurface->SetInt("isWireMode", wireframe);
+
+	rendersurface->SetFloat("elementRhoThreshold", elementRhoThreshold);
 
 	rendersurface->Begin();
 	{

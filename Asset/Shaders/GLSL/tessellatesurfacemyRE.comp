@@ -60,6 +60,8 @@ uniform int degreeW;
 uniform int numVtsBetweenKnotsU;
 uniform int numVtsBetweenKnotsV;
 
+// uniform float elementRhoThreshold;
+
 // vec4 <=> max degree 3 curves
 shared vec4 CoeffsU[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
 shared vec4 CoeffsV[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
@@ -343,9 +345,8 @@ void main()
 				}
 
 				pos /= denom;
-
 				pos.w = 1.0;
-				// TODO: Save point
+
 				index1 = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 
 				surfacevertices.data[index1].Position = pos;
@@ -354,10 +355,10 @@ void main()
 				index2 = groupIDz * (numControlPointsU - degreeU) * (numControlPointsV - degreeV) + groupIDx * (numControlPointsV - degreeV) + groupIDy;
 				float elementRho = elementRhoBuffer.data[index2];
 				surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
-				if(elementRho < 0.1)
-				{
-					surfacevertices.data[index1].Position = vec4(0.0);
-				}
+				// if(elementRho < elementRhoThreshold)
+				// {
+				// 	surfacevertices.data[index1].Position = vec4(0.0);
+				// }
 			}
 		}
 	}

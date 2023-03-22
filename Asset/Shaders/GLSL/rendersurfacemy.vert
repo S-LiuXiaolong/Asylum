@@ -11,6 +11,8 @@ uniform mat4 matViewProj;
 
 uniform vec4 eyePos;
 
+uniform float elementRhoThreshold;
+
 out vec3 wnorm;
 out vec3 vdir;
 out vec3 color;
@@ -23,5 +25,8 @@ void main()
 	wnorm = (vec4(my_Normal, 0) * matWorldInv).xyz;
 	color = my_Color;
 
-	gl_Position = matViewProj * wpos;
+	if(my_Color.x < elementRhoThreshold)
+		gl_Position = vec4(0.0);
+	else
+		gl_Position = matViewProj * wpos;
 }
