@@ -90,6 +90,8 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 int animationClicked = 0;
 int animationRhoIndex = 0;
 bool rhoChangeDirty = false;
+
+int alreadySetupGeom = 0;
 // ---------------------------------------IMGUI-------------------------------------
 
 void build_rho()
@@ -543,131 +545,264 @@ void UninitScene()
 
 void Tessellate()
 {
-	for (auto& surface : surfacegroup)
+	if (!alreadySetupGeom)
 	{
-		delete surface;
-	}
-	surfacegroup.clear();
+// 		for (auto& surface : surfacegroup)
+// 		{
+// 			delete surface;
+// 		}
+// 		surfacegroup.clear();
 
-	OpenGLVertexElement decl[] = {
-		{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
-		{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
-		{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
-		{ 0xff, 0, 0, 0, 0 }
-	};
+		surfacegroup.resize(3);
 
-	for(int i = 0; i < 3; i++)
-	{
-		NURBSLayerData& layerData = mesh_layers[i];
-		auto& cptsIndex = layerData.cptsIndex;
-		auto& weights = layerData.weights;
-		auto& knotU = layerData.knotU;
-		auto& knotV = layerData.knotV;
-		auto& knotW = layerData.knotW;
-		auto& rho = layerData.LayerRho;
+		OpenGLVertexElement decl[] = {
+			{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
+			{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
+			{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
+			{ 0xff, 0, 0, 0, 0 }
+		};
 
-		int numCptU = cptsIndex[0].size();
-		int numCptV = cptsIndex[0][0].size();
-		int numCptW = cptsIndex.size();
-
-		int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
-		int surfaceNum = nelW * 2;
-
-		int numSegmentsU = numSegBetweenKnotsU * nelU;
-		int numSegmentsV = numSegBetweenKnotsV * nelV;
-		int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
-		int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
-
-		OpenGLMesh* surface = nullptr;
-
-		// create surface
-		// FIXME: How to get MaxSurfaceVertices and Indices?
-		// FIXME: Hard-codes here makes fault.
-		int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
-		int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
-		if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
-			MYERROR("Could not create surface");
-			return;
-		}
-
-		// update surface cvs and weights (STL 2D vector will cause fault)
-		Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
-		float* surfacewts = new float[numCptW * numCptU * numCptV];
-		float* surfacerho = new float[nelW * nelU * nelV];
-		uint32_t index;
-
-		for(int s = 0; s < numCptW; s++) {
-			for (int m = 0; m < numCptU; m++) {
-				for (int n = 0; n < numCptV; n++) {
-					index = s * numCptU * numCptV + m * numCptV + n;
-					surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
-					surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
-					surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].z;
-					// std::cout << mesh_cp_vertices[cptsIndex[s][m][n] - 1].x << mesh_cp_vertices[cptsIndex[s][m][n] - 1].y << mesh_cp_vertices[cptsIndex[s][m][n] - 1].z << std::endl;
-					surfacewts[index] = weights[s][m][n];
-				}
-			}
-		}
-
-		for(int s = 0; s < nelW; s++) {
-			for (int m = 0; m < nelU; m++) {
-				for (int n = 0; n < nelV; n++) {
-					index = s * nelU * nelV + m * nelV + n;
-					surfacerho[index] = rho[s][m][n];
-				}
-			}
-		}
-
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
-		//-------------------------------------TEST PASS------------------------------------------
-
-		glGenBuffers(1, &cptsBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
-
-		glGenBuffers(1, &wtsBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(float), surfacewts, GL_STATIC_READ);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
-
-		glGenBuffers(1, &rhoBuffer);
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
-		glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
-		//-------------------------------------TEST PASS------------------------------------------
-
-		tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
-		tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
-		tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
-		tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
-		tessellatesurfacemy->SetInt("numControlPointsW", numCptW);
-		tessellatesurfacemy->SetInt("degreeU", DEGREE);
-		tessellatesurfacemy->SetInt("degreeV", DEGREE);
-		tessellatesurfacemy->SetInt("degreeW", DEGREE);
-		tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
-		tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
-		tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
-
-		tessellatesurfacemy->Begin();
+		for (int i = 0; i < 3; i++)
 		{
-			glDispatchCompute(nelU, nelV, nelW);
+			NURBSLayerData& layerData = mesh_layers[i];
+			auto& cptsIndex = layerData.cptsIndex;
+			auto& weights = layerData.weights;
+			auto& knotU = layerData.knotU;
+			auto& knotV = layerData.knotV;
+			auto& knotW = layerData.knotW;
+			auto& rho = layerData.LayerRho;
+
+			int numCptU = cptsIndex[0].size();
+			int numCptV = cptsIndex[0][0].size();
+			int numCptW = cptsIndex.size();
+
+			int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
+			int surfaceNum = nelW * 2;
+
+			int numSegmentsU = numSegBetweenKnotsU * nelU;
+			int numSegmentsV = numSegBetweenKnotsV * nelV;
+			int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
+			int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
+
+			OpenGLMesh* surface = nullptr;
+
+			// create surface
+			// FIXME: How to get MaxSurfaceVertices and Indices?
+			// FIXME: Hard-codes here makes fault.
+			int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
+			int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
+			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
+				MYERROR("Could not create surface");
+				return;
+			}
+
+			// update surface cvs and weights (STL 2D vector will cause fault)
+			Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
+			float* surfacewts = new float[numCptW * numCptU * numCptV];
+			float* surfacerho = new float[nelW * nelU * nelV];
+			uint32_t index;
+
+			for (int s = 0; s < numCptW; s++) {
+				for (int m = 0; m < numCptU; m++) {
+					for (int n = 0; n < numCptV; n++) {
+						index = s * numCptU * numCptV + m * numCptV + n;
+						surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
+						surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
+						surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].z;
+						// std::cout << mesh_cp_vertices[cptsIndex[s][m][n] - 1].x << mesh_cp_vertices[cptsIndex[s][m][n] - 1].y << mesh_cp_vertices[cptsIndex[s][m][n] - 1].z << std::endl;
+						surfacewts[index] = weights[s][m][n];
+					}
+				}
+			}
+
+			for (int s = 0; s < nelW; s++) {
+				for (int m = 0; m < nelU; m++) {
+					for (int n = 0; n < nelV; n++) {
+						index = s * nelU * nelV + m * nelV + n;
+						surfacerho[index] = rho[s][m][n];
+					}
+				}
+			}
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
+			//-------------------------------------TEST PASS------------------------------------------
+
+			glGenBuffers(1, &cptsBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
+
+			glGenBuffers(1, &wtsBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(float), surfacewts, GL_STATIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
+
+			glGenBuffers(1, &rhoBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
+			//-------------------------------------TEST PASS------------------------------------------
+
+			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+			tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
+			tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
+			tessellatesurfacemy->SetInt("numControlPointsW", numCptW);
+			tessellatesurfacemy->SetInt("degreeU", DEGREE);
+			tessellatesurfacemy->SetInt("degreeV", DEGREE);
+			tessellatesurfacemy->SetInt("degreeW", DEGREE);
+			tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
+
+			tessellatesurfacemy->SetInt("alreadySetupGeom", alreadySetupGeom);
+
+			tessellatesurfacemy->Begin();
+			{
+				glDispatchCompute(nelU, nelV, nelW);
+			}
+			tessellatesurfacemy->End();
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+
+			glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
+
+			surface->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
+
+			delete[] surfacecvs;
+
+			surfacegroup[i] = surface;
+
 		}
-		tessellatesurfacemy->End();
-
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-
-		glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
-
-		surface->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
-
-		delete[] surfacecvs;
-
-		surfacegroup.push_back(surface);
+		// FIXME
+		alreadySetupGeom = 1;
 	}
 
+	else
+	{
+		surfacegroup.resize(3);
+
+		OpenGLVertexElement decl[] = {
+			{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
+			{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
+			{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
+			{ 0xff, 0, 0, 0, 0 }
+		};
+
+		for (int i = 0; i < 3; i++)
+		{
+			NURBSLayerData& layerData = mesh_layers[i];
+			auto& cptsIndex = layerData.cptsIndex;
+			auto& weights = layerData.weights;
+			auto& knotU = layerData.knotU;
+			auto& knotV = layerData.knotV;
+			auto& knotW = layerData.knotW;
+			auto& rho = layerData.LayerRho;
+
+			int numCptU = cptsIndex[0].size();
+			int numCptV = cptsIndex[0][0].size();
+			int numCptW = cptsIndex.size();
+
+			int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
+			int surfaceNum = nelW * 2;
+
+			int numSegmentsU = numSegBetweenKnotsU * nelU;
+			int numSegmentsV = numSegBetweenKnotsV * nelV;
+			int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
+			int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
+
+// 			OpenGLMesh* surface = nullptr;
+// 
+// 			// create surface
+// 			// FIXME: How to get MaxSurfaceVertices and Indices?
+// 			// FIXME: Hard-codes here makes fault.
+// 			int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
+// 			int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
+// 			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
+// 				MYERROR("Could not create surface");
+// 				return;
+// 			}
+
+			// update surface cvs and weights (STL 2D vector will cause fault)
+			Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
+			float* surfacewts = new float[numCptW * numCptU * numCptV];
+			float* surfacerho = new float[nelW * nelU * nelV];
+			uint32_t index;
+
+			for (int s = 0; s < numCptW; s++) {
+				for (int m = 0; m < numCptU; m++) {
+					for (int n = 0; n < numCptV; n++) {
+						index = s * numCptU * numCptV + m * numCptV + n;
+						surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
+						surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
+						surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].z;
+						// std::cout << mesh_cp_vertices[cptsIndex[s][m][n] - 1].x << mesh_cp_vertices[cptsIndex[s][m][n] - 1].y << mesh_cp_vertices[cptsIndex[s][m][n] - 1].z << std::endl;
+						surfacewts[index] = weights[s][m][n];
+					}
+				}
+			}
+
+			for (int s = 0; s < nelW; s++) {
+				for (int m = 0; m < nelU; m++) {
+					for (int n = 0; n < nelV; n++) {
+						index = s * nelU * nelV + m * nelV + n;
+						surfacerho[index] = rho[s][m][n];
+					}
+				}
+			}
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surfacegroup[i]->GetVertexBuffer());
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surfacegroup[i]->GetIndexBuffer());
+			//-------------------------------------TEST PASS------------------------------------------
+
+			glGenBuffers(1, &cptsBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
+
+			glGenBuffers(1, &wtsBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(float), surfacewts, GL_STATIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
+
+			glGenBuffers(1, &rhoBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
+			//-------------------------------------TEST PASS------------------------------------------
+
+			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
+			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
+			tessellatesurfacemy->SetInt("numControlPointsU", numCptU);
+			tessellatesurfacemy->SetInt("numControlPointsV", numCptV);
+			tessellatesurfacemy->SetInt("numControlPointsW", numCptW);
+			tessellatesurfacemy->SetInt("degreeU", DEGREE);
+			tessellatesurfacemy->SetInt("degreeV", DEGREE);
+			tessellatesurfacemy->SetInt("degreeW", DEGREE);
+			tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
+
+			tessellatesurfacemy->SetInt("alreadySetupGeom", alreadySetupGeom);
+
+			tessellatesurfacemy->Begin();
+			{
+				glDispatchCompute(nelU, nelV, nelW);
+			}
+			tessellatesurfacemy->End();
+
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+
+			glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
+
+			// surfacegroup[i]->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
+
+			delete[] surfacecvs;
+		}
+	}
 }
 
 
@@ -740,10 +875,15 @@ void Update(float delta)
 
 	if (animationClicked & 1)
 	{
-		build_rho();
-		animationRhoIndex = animationRhoIndex >= (meshes_rho.size() - 1) ?
-			(meshes_rho.size() - 1) : (animationRhoIndex + 1);
-		Tessellate();
+		if (animationRhoIndex >= (meshes_rho.size() - 1)) {
+			animationRhoIndex = meshes_rho.size() - 1;
+		}
+		else {
+			build_rho();
+			animationRhoIndex = animationRhoIndex + 1;
+			Tessellate();
+		}
+		
 	}
 }
 
