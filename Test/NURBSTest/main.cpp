@@ -30,14 +30,14 @@ extern "C" {
 #define DEGREE 2
 
 // TODO: Maybe put the surface and whole-mesh class into another file?
-struct NURBSSurfaceData
-{
-	std::vector<std::vector<uint32_t>> cptsIndex;
-	std::vector<std::vector<float>> weights;
-	std::vector<float> knotU, knotV;
+// struct NURBSSurfaceData
+// {
+// 	std::vector<std::vector<uint32_t>> cptsIndex;
+// 	std::vector<std::vector<float>> weights;
+// 	std::vector<float> knotU, knotV;
 
-	std::vector<std::vector<float>> patchRho;
-};
+// 	std::vector<std::vector<float>> patchRho;
+// };
 
 
 struct NURBSLayerData
@@ -50,7 +50,7 @@ struct NURBSLayerData
 };
 
 // NURBSSurfaceData mesh_surfaces[6];
-std::vector<NURBSSurfaceData> mesh_surfaces;
+// std::vector<NURBSSurfaceData> mesh_surfaces;
 
 NURBSLayerData mesh_layers[3];
 
@@ -80,44 +80,24 @@ uint32_t nelx, nely, nelz;
 uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
-std::vector<std::vector<std::vector<float>>> mesh_rho;
+std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho;
 
 // TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
-void build_surface()
+// ---------------------------------------IMGUI-------------------------------------
+int animationClicked = 0;
+int animationRhoIndex = 0;
+bool rhoChangeDirty = false;
+// ---------------------------------------IMGUI-------------------------------------
+
+void build_rho()
 {
-	mesh_layers[0].cptsIndex.resize(numCptx);
-	for(int i = 0; i < numCptx; i++)
-	{
-		mesh_layers[0].cptsIndex[i] = chan[i];
+	for (int i = 0; i < 3; i++) {
+		mesh_layers[i].LayerRho.clear();
 	}
-
-	mesh_layers[1].cptsIndex.resize(numCptz);
-	for(int i = 0; i < numCptz; i++)
-	{
-		for(int j = 0; j < numCptx; j++)
-		{
-			std::vector<uint32_t> onerow = chan[j][i];
-			mesh_layers[1].cptsIndex[i].push_back(onerow);
-		}
-	}
-
-	mesh_layers[2].cptsIndex.resize(numCpty);
-	for(int i = 0; i < numCpty; i++)
-	{
-		for(int j = 0; j < numCptx; j++)
-		{
-			std::vector<uint32_t> onecolomn;
-			for(int k = 0; k < numCptz; k++)
-			{
-				onecolomn.push_back(chan[j][k][i]);
-			}
-			mesh_layers[2].cptsIndex[i].push_back(onecolomn);
-		}
-	}
-
+	auto& mesh_rho = meshes_rho[animationRhoIndex];
 	// Element density
 	mesh_layers[0].LayerRho.resize(nelx);
 	for(int i = 0; i < nelx; i++)
@@ -148,6 +128,75 @@ void build_surface()
 			mesh_layers[2].LayerRho[i].push_back(onecolomn);
 		}
 	}
+}
+
+void build_surface()
+{
+	for (int i = 0; i < 3; i++) {
+		mesh_layers[i].LayerRho.clear();
+	}
+	mesh_layers[0].cptsIndex.resize(numCptx);
+	for(int i = 0; i < numCptx; i++)
+	{
+		mesh_layers[0].cptsIndex[i] = chan[i];
+	}
+
+	mesh_layers[1].cptsIndex.resize(numCptz);
+	for(int i = 0; i < numCptz; i++)
+	{
+		for(int j = 0; j < numCptx; j++)
+		{
+			std::vector<uint32_t> onerow = chan[j][i];
+			mesh_layers[1].cptsIndex[i].push_back(onerow);
+		}
+	}
+
+	mesh_layers[2].cptsIndex.resize(numCpty);
+	for(int i = 0; i < numCpty; i++)
+	{
+		for(int j = 0; j < numCptx; j++)
+		{
+			std::vector<uint32_t> onecolomn;
+			for(int k = 0; k < numCptz; k++)
+			{
+				onecolomn.push_back(chan[j][k][i]);
+			}
+			mesh_layers[2].cptsIndex[i].push_back(onecolomn);
+		}
+	}
+
+	build_rho();
+// 	// Element density
+// 	auto& mesh_rho = meshes_rho[animationRhoIndex];
+// 	mesh_layers[0].LayerRho.resize(nelx);
+// 	for(int i = 0; i < nelx; i++)
+// 	{
+// 		mesh_layers[0].LayerRho[i] = mesh_rho[i];
+// 	}
+// 
+// 	mesh_layers[1].LayerRho.resize(nelz);
+// 	for(int i = 0; i < nelz; i++)
+// 	{
+// 		for(int j = 0; j < nelx; j++)
+// 		{
+// 			std::vector<float> onerow = mesh_rho[j][i];
+// 			mesh_layers[1].LayerRho[i].push_back(onerow);
+// 		}
+// 	}
+// 
+// 	mesh_layers[2].LayerRho.resize(nely);
+// 	for(int i = 0; i < nely; i++)
+// 	{
+// 		for(int j = 0; j < nelx; j++)
+// 		{
+// 			std::vector<float> onecolomn;
+// 			for(int k = 0; k < nelz; k++)
+// 			{
+// 				onecolomn.push_back(mesh_rho[j][k][i]);
+// 			}
+// 			mesh_layers[2].LayerRho[i].push_back(onecolomn);
+// 		}
+// 	}
 
 	for(int i = 0; i < 3; i++)
 	{
@@ -230,7 +279,7 @@ void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/matlab_big/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_middle/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -241,16 +290,16 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/matlab_big/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_middle/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/matlab_big/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_middle/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/matlab_big/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_middle/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
@@ -262,7 +311,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/matlab_big/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_middle/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -278,23 +327,30 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
-	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
-	std::vector<float> buffer_rho;
-	read_float("../../../Asset/matlab_big/rho.bin", buffer_rho);
-	for (int i = 0; i < nelx; i++)
+	// TODO: rho
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_middle/rho");
+	meshes_rho.resize(numRhoFiles);
+	for(int s = 0; s < numRhoFiles; s++)
 	{
-		std::vector<std::vector<float>> face;
-		for (int j = 0; j < nelz; j++)
+		std::vector<float> buffer_rho;
+		std::string path = "../../../Asset/matlab_middle/rho/rho_" + std::to_string(s + 1) + ".bin";
+		read_float(path, buffer_rho);
+		for (int i = 0; i < nelx; i++)
 		{
-			std::vector<float> line;
-			for (int k = 0; k < nely; k++)
+			std::vector<std::vector<float>> face;
+			for (int j = 0; j < nelz; j++)
 			{
-				line.push_back(buffer_rho[i * nelz * nely + j * nely + k]);
+				std::vector<float> line;
+				for (int k = 0; k < nely; k++)
+				{
+					line.push_back(buffer_rho[i * nelz * nely + j * nely + k]);
+				}
+				face.push_back(line);
 			}
-			face.push_back(line);
+			meshes_rho[s].push_back(face);
 		}
-		mesh_rho.push_back(face);
 	}
+
 
 	build_surface();
 }
@@ -367,10 +423,62 @@ void imguiSetup()
     {
 		ImGui::SeparatorText("Inputs");
         {
-            ImGui::InputFloat("Element Display Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
+            ImGui::InputFloat("Rho Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
 			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
 			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
         }
+
+		ImGui::SeparatorText("Animation");
+		{
+			if (ImGui::Button("Button"))
+				animationClicked++;
+			if (animationClicked & 1)
+			{
+				ImGui::SameLine();
+				ImGui::Text("Playing Animation...");
+			}
+			else
+			{
+				ImGui::SameLine();
+				ImGui::Text("Paused");
+			}
+
+			// Combo Boxes are also called "Dropdown" in other systems
+			// Expose flags as checkbox for the demo
+			static ImGuiComboFlags flags = 0;
+
+			// Using the generic BeginCombo() API, you have full control over how to display the combo contents.
+			// (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
+			// stored in the object itself, etc.)
+			// const char* items[] = { "AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIII", "JJJJ", "KKKK", "LLLLLLL", "MMMM", "OOOOOOO" };
+			std::vector<std::string> items;
+			items.resize(meshes_rho.size());
+			for(int i = 0; i < meshes_rho.size(); i++)
+			{
+				std::string filename = "rho_" + std::to_string(i + 1) + ".bin";
+				items[i] = filename;
+			}
+
+			const char* combo_preview_value = items[animationRhoIndex].c_str();  // Pass in the preview value visible before opening the combo (it could be anything)
+			if (ImGui::BeginCombo("combo", combo_preview_value, flags))
+			{
+				for (int n = 0; n < meshes_rho.size(); n++)
+				{
+					const bool is_selected = (animationRhoIndex == n);
+					if (ImGui::Selectable(items[n].c_str(), is_selected))
+					{
+						animationRhoIndex = n;
+						rhoChangeDirty = true;
+					}
+					// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+					if (is_selected)
+						ImGui::SetItemDefaultFocus();
+						// animationRhoIndex = n;
+				}
+				ImGui::EndCombo();
+			}
+
+		}
     }
 }
 
@@ -622,6 +730,21 @@ void MouseMove(int32_t x, int32_t y, int16_t dx, int16_t dy)
 void Update(float delta)
 {
 	camera.Update(delta);
+
+	if (rhoChangeDirty)
+	{
+		build_rho();
+		Tessellate();
+		rhoChangeDirty = false;
+	}
+
+	if (animationClicked & 1)
+	{
+		build_rho();
+		animationRhoIndex = animationRhoIndex >= (meshes_rho.size() - 1) ?
+			(meshes_rho.size() - 1) : (animationRhoIndex + 1);
+		Tessellate();
+	}
 }
 
 void Render(float alpha, float elapsedtime)

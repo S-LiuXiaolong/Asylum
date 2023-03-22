@@ -1,5 +1,6 @@
 add_subdirectory(BinReadTest)
 add_subdirectory(Bitmap)
+add_subdirectory(Coroutine)
 add_subdirectory(glNURBS)
 add_subdirectory(ImGuiTest)
 add_subdirectory(INPReader)
