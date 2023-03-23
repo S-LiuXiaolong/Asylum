@@ -29,17 +29,6 @@ extern "C" {
 
 #define DEGREE 2
 
-// TODO: Maybe put the surface and whole-mesh class into another file?
-// struct NURBSSurfaceData
-// {
-// 	std::vector<std::vector<uint32_t>> cptsIndex;
-// 	std::vector<std::vector<float>> weights;
-// 	std::vector<float> knotU, knotV;
-
-// 	std::vector<std::vector<float>> patchRho;
-// };
-
-
 struct NURBSLayerData
 {
 	std::vector<std::vector<std::vector<uint32_t>>> cptsIndex;
@@ -48,9 +37,6 @@ struct NURBSLayerData
 
 	std::vector<std::vector<std::vector<float>>> LayerRho;
 };
-
-// NURBSSurfaceData mesh_surfaces[6];
-// std::vector<NURBSSurfaceData> mesh_surfaces;
 
 NURBSLayerData mesh_layers[3];
 
@@ -63,6 +49,8 @@ OpenGLScreenQuad*	screenquad				= nullptr;
 uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
 
 std::vector<OpenGLMesh*>		surfacegroup;
+OpenGLMesh*		sphere			= nullptr;  // for drawing control points
+OpenGLMesh*		staticbatch		= nullptr;	// for static instancing
 
 BasicCamera			camera;
 float				selectiondx			= 0;
@@ -87,9 +75,10 @@ void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
 // ---------------------------------------IMGUI-------------------------------------
-int animationClicked = 0;
+bool animationPlaying = false;
 int animationRhoIndex = 0;
 bool rhoChangeDirty = false;
+bool segChangeDirty = false;
 
 int alreadySetupGeom = 0;
 // ---------------------------------------IMGUI-------------------------------------
@@ -281,7 +270,7 @@ void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/matlab_middle/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_small/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -292,16 +281,16 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/matlab_middle/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_small/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/matlab_middle/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_small/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/matlab_middle/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_small/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
@@ -313,7 +302,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/matlab_middle/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_small/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -329,13 +318,12 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
-	// TODO: rho
-	int numRhoFiles = GetFileNum("../../../Asset/matlab_middle/rho");
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
 	meshes_rho.resize(numRhoFiles);
 	for(int s = 0; s < numRhoFiles; s++)
 	{
 		std::vector<float> buffer_rho;
-		std::string path = "../../../Asset/matlab_middle/rho/rho_" + std::to_string(s + 1) + ".bin";
+		std::string path = "../../../Asset/matlab_small/rho/rho_" + std::to_string(s + 1) + ".bin";
 		read_float(path, buffer_rho);
 		for (int i = 0; i < nelx; i++)
 		{
@@ -405,36 +393,67 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer)
 	}
 }
 
+void HelpMarker(const char* desc)
+{
+    ImGui::TextDisabled("(?)");
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
+    {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+        ImGui::TextUnformatted(desc);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
+
 void imguiSetup()
 {
-	// TODO: Add all imgui widget here.
+	// TODO: Add all imgui widgets here.
+	// TODO: Show all control points
 	//show Main Window
 	ImGui::ShowDemoWindow();
 
     if (ImGui::CollapsingHeader("Style Configuration"))
     {
-        // if (ImGui::TreeNode("Style"))
         {
             ImGui::ShowStyleEditor();
-            // ImGui::TreePop();
             ImGui::Spacing();
         }
     }
 
     if (ImGui::CollapsingHeader("Display Control"))
     {
-		ImGui::SeparatorText("Inputs");
+		ImGui::SeparatorText("Display Setup");
         {
+			if (ImGui::Button("Body/WireFrame"))
+				wireframe = !wireframe;
+			if (wireframe)
+			{
+				ImGui::SameLine();
+				ImGui::Text("Wireframe mode");
+			}
+			else
+			{
+				ImGui::SameLine();
+				ImGui::Text("Physical body mode");
+			}
+
             ImGui::InputFloat("Rho Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
 			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
 			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
+
+            if(ImGui::SliderInt("slider int", &numSegBetweenKnotsU, 1, 10))
+			{
+				numSegBetweenKnotsV = numSegBetweenKnotsU;
+				segChangeDirty = true;
+			}
+            ImGui::SameLine(); HelpMarker("CTRL+click to input value.");
         }
 
 		ImGui::SeparatorText("Animation");
 		{
-			if (ImGui::Button("Button"))
-				animationClicked++;
-			if (animationClicked & 1)
+			if (ImGui::Button("Start/Pause"))
+				animationPlaying = !animationPlaying;
+			if (animationPlaying)
 			{
 				ImGui::SameLine();
 				ImGui::Text("Playing Animation...");
@@ -543,7 +562,8 @@ void UninitScene()
 	OpenGLContentManager().Release();
 }
 
-// FIXME
+
+// FIXME: 2023/3/23
 void Tessellate()
 {
 	if (!alreadySetupGeom)
@@ -588,8 +608,6 @@ void Tessellate()
 			OpenGLMesh* surface = nullptr;
 
 			// create surface
-			// FIXME: How to get MaxSurfaceVertices and Indices?
-			// FIXME: Hard-codes here makes fault.
 			int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
 			int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
 			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
@@ -677,21 +695,12 @@ void Tessellate()
 			surfacegroup[i] = surface;
 
 		}
-		// FIXME
+		// FIXME: 2023/3/23
 		alreadySetupGeom = 1;
 	}
 
 	else
 	{
-		surfacegroup.resize(3);
-
-		OpenGLVertexElement decl[] = {
-			{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
-			{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
-			{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
-			{ 0xff, 0, 0, 0, 0 }
-		};
-
 		for (int i = 0; i < 3; i++)
 		{
 			NURBSLayerData& layerData = mesh_layers[i];
@@ -707,43 +716,10 @@ void Tessellate()
 			int numCptW = cptsIndex.size();
 
 			int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
-			int surfaceNum = nelW * 2;
 
-			int numSegmentsU = numSegBetweenKnotsU * nelU;
-			int numSegmentsV = numSegBetweenKnotsV * nelV;
-			int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
-			int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
-
-// 			OpenGLMesh* surface = nullptr;
-// 
-// 			// create surface
-// 			// FIXME: How to get MaxSurfaceVertices and Indices?
-// 			// FIXME: Hard-codes here makes fault.
-// 			int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
-// 			int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
-// 			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
-// 				MYERROR("Could not create surface");
-// 				return;
-// 			}
-
-			// update surface cvs and weights (STL 2D vector will cause fault)
-			Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
-			float* surfacewts = new float[numCptW * numCptU * numCptV];
+			// create surface
 			float* surfacerho = new float[nelW * nelU * nelV];
 			uint32_t index;
-
-			for (int s = 0; s < numCptW; s++) {
-				for (int m = 0; m < numCptU; m++) {
-					for (int n = 0; n < numCptV; n++) {
-						index = s * numCptU * numCptV + m * numCptV + n;
-						surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
-						surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
-						surfacecvs[index][2] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].z;
-						// std::cout << mesh_cp_vertices[cptsIndex[s][m][n] - 1].x << mesh_cp_vertices[cptsIndex[s][m][n] - 1].y << mesh_cp_vertices[cptsIndex[s][m][n] - 1].z << std::endl;
-						surfacewts[index] = weights[s][m][n];
-					}
-				}
-			}
 
 			for (int s = 0; s < nelW; s++) {
 				for (int m = 0; m < nelU; m++) {
@@ -756,23 +732,11 @@ void Tessellate()
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surfacegroup[i]->GetVertexBuffer());
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surfacegroup[i]->GetIndexBuffer());
-			//-------------------------------------TEST PASS------------------------------------------
-
-			glGenBuffers(1, &cptsBuffer);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(Math::Vector4), surfacecvs, GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, cptsBuffer);
-
-			glGenBuffers(1, &wtsBuffer);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, wtsBuffer);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, numCptU * numCptV * numCptW * sizeof(float), surfacewts, GL_STATIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, wtsBuffer);
 
 			glGenBuffers(1, &rhoBuffer);
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
-			//-------------------------------------TEST PASS------------------------------------------
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
@@ -798,42 +762,54 @@ void Tessellate()
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
 
 			glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
-
-			// surfacegroup[i]->GetAttributeTable()->IndexCount = surfaceNum * numSegmentsU * numSegmentsV * 6;
-
-			delete[] surfacecvs;
 		}
 	}
 }
 
-
+// TODO: Add to imgui
 void KeyUp(KeyCode key)
 {
 	switch (key) {
 
-	case KeyCodeW:
-		wireframe = !wireframe;
-		break;
+	// case KeyCodeW:
+	// 	wireframe = !wireframe;
+	// 	break;
 
-	case KeyCodeA:
-		numSegBetweenKnotsU = Math::Min<int>(numSegBetweenKnotsU + 5, 20);
-		numSegBetweenKnotsV = Math::Min<int>(numSegBetweenKnotsV + 5, 20);
-		Tessellate();
-		break;
+	// case KeyCodeA:
+	// 	if(numSegBetweenKnotsU >= 10 && numSegBetweenKnotsV >= 10) {
+	// 		numSegBetweenKnotsU = 10;
+	// 		numSegBetweenKnotsV = 10;
+	// 	}
+	// 	else {
+	// 		numSegBetweenKnotsU += 2;
+	// 		numSegBetweenKnotsV += 2;
+	// 		alreadySetupGeom = 0;
+	// 		Tessellate();
+	// 	}
+	// 	break;
 
-	case KeyCodeD:
-		numSegBetweenKnotsU = Math::Max<int>(numSegBetweenKnotsU - 5, 5);
-		numSegBetweenKnotsV = Math::Max<int>(numSegBetweenKnotsV - 5, 5);
-		Tessellate();
-		break;
+	// case KeyCodeD:
+	// 	if(numSegBetweenKnotsU <= 1 && numSegBetweenKnotsV <= 1) {
+	// 		numSegBetweenKnotsU = 1;
+	// 		numSegBetweenKnotsV = 1;
+	// 	}
+	// 	else {
+	// 		numSegBetweenKnotsU -= 2;
+	// 		numSegBetweenKnotsV -= 2;
+	// 		alreadySetupGeom = 0;
+	// 		Tessellate();
+	// 	}
+	// 	break;
 
 	case KeyCodeQ:
 		mesh_cp_vertices[10].z -= 0.2f;
+		alreadySetupGeom = 0;
 		Tessellate();
 		break;
 
 	case KeyCodeE:
 		mesh_cp_vertices[10].z += 0.2f;
+		alreadySetupGeom = 0;
 		Tessellate();
 		break;
 
@@ -874,7 +850,14 @@ void Update(float delta)
 		rhoChangeDirty = false;
 	}
 
-	if (animationClicked & 1)
+	if (segChangeDirty)
+	{
+		alreadySetupGeom = 0;
+		Tessellate();
+		segChangeDirty = false;
+	}
+
+	if (animationPlaying)
 	{
 		if (animationRhoIndex >= (meshes_rho.size() - 1)) {
 			animationRhoIndex = meshes_rho.size() - 1;

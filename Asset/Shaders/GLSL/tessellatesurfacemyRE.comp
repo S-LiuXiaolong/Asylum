@@ -132,6 +132,7 @@ float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
 	return Blossom[(e * MAX_ORDER + degree) * MAX_ORDER];
 }
 
+// TODO: ///
 layout (local_size_x = BLOCK_SIZE, local_size_y = BLOCK_SIZE) in;
 void main()
 {
@@ -266,22 +267,6 @@ void main()
 		float firstW = knotsW[degreeW + groupIDz];
 		float nextW = knotsW[degreeW + groupIDz + 1];
 		
-		// for (spanW = 0; spanW < lastspanW; ++spanW) {
-		// 	if ((knotsW[spanW] <= w && w < knotsW[spanW + 1]))
-		// 		break;
-		// }
-
-		// FIXME: Modify here to display all faces correctly
-		// if(groupIDz % 2 == 0)
-		// 	spanW = degreeW + int(groupIDz / 2);
-		// else if(groupIDz % 2 == 1)
-		// 	spanW = degreeW + int(groupIDz / 2) + 1;
-
-		// spanW = degreeW + int(groupIDz / 2);
-		// w = knotsW[spanW];
-		// polyW = vec4(1.0, w, w * w, w * w * w);
-		// dWpoly = vec4(0.0, 1.0, 2.0 * w, 3.0 * w * w);
-		
 		for(int s = 0; s < 2; s++)
 		{
 			w = s;
@@ -390,30 +375,15 @@ void main()
 		}
 	}
 
-	// TODO
+	// TODO: ///
 	else
 	{
 		vec4 cf;
 
 		int numSegBetweenKnotsU	= numVtsBetweenKnotsU - 1;
 		int numSegBetweenKnotsV	= numVtsBetweenKnotsV - 1;
-		int numknotsU		= numControlPointsU + degreeU + 1;
-		int numknotsV		= numControlPointsV + degreeV + 1;
-		int numknotsW		= numControlPointsW + degreeW + 1;
-		int lastspanU		= numControlPointsU - 1;
-		int lastspanV		= numControlPointsV - 1;
-		int lastspanW		= numControlPointsW - 1;
-		int orderU			= degreeU + 1;
-		int orderV			= degreeV + 1;
-		int orderW			= degreeW + 1;
 
-		int spanU, spanV, spanW, cpU, cpV, cpW;
-		int index1, index2, index3;
-
-		vec4 pos;
-		vec4 polyU, polyV, polyW;
-		vec4 dUpoly, dVpoly, dWpoly;
-		vec3 tangent, bitangent;
+		int index1, index2;
 
 		ivec2 loc = ivec2(gl_LocalInvocationID.xy);
 		int elemsperitemU = max(1, (numVtsBetweenKnotsU + (BLOCK_SIZE - 1)) / BLOCK_SIZE);
@@ -434,17 +404,9 @@ void main()
 		int numSegmentsU = numSegBetweenKnotsU * (numControlPointsU - degreeU);
 		int numSegmentsV = numSegBetweenKnotsV * (numControlPointsV - degreeV);
 
-
 		int groupIDx = int(gl_WorkGroupID.x);
 		int groupIDy = int(gl_WorkGroupID.y);
 		int groupIDz = int(gl_WorkGroupID.z);
-
-		float firstU = knotsU[degreeU + groupIDx];
-		float nextU = knotsU[degreeU + groupIDx + 1];
-		float firstV = knotsV[degreeV + groupIDy];
-		float nextV = knotsV[degreeV + groupIDy + 1];
-		float firstW = knotsW[degreeW + groupIDz];
-		float nextW = knotsW[degreeW + groupIDz + 1];
 
 		for(int s = 0; s < 2; s++)
 		{
@@ -457,10 +419,6 @@ void main()
 					index2 = groupIDz * (numControlPointsU - degreeU) * (numControlPointsV - degreeV) + groupIDx * (numControlPointsV - degreeV) + groupIDy;
 					float elementRho = elementRhoBuffer.data[index2];
 					surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
-					// if(elementRho < elementRhoThreshold)
-					// {
-					// 	surfacevertices.data[index1].Position = vec4(0.0);
-					// }
 				}
 			}
 		}
