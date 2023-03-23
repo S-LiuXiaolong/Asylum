@@ -45,12 +45,15 @@ Application*		app						= nullptr;
 
 OpenGLEffect*		rendersurface			= nullptr;
 OpenGLEffect*		tessellatesurfacemy		= nullptr;
+OpenGLEffect*		rendercontrolpts		= nullptr;
 OpenGLScreenQuad*	screenquad				= nullptr;
 uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
 
 std::vector<OpenGLMesh*>		surfacegroup;
 OpenGLMesh*		sphere			= nullptr;  // for drawing control points
-OpenGLMesh*		staticbatch		= nullptr;	// for static instancing
+
+GLuint controlpointVBO = 0;
+GLuint controlpointVAO = 0;
 
 BasicCamera			camera;
 float				selectiondx			= 0;
@@ -74,14 +77,21 @@ std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho;
 void read_float(std::string strFile, std::vector<float>& buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
 
-// ---------------------------------------IMGUI-------------------------------------
+// ---------------------------------------IMGUI PROPERTIES-------------------------------------
 bool animationPlaying = false;
 int animationRhoIndex = 0;
 bool rhoChangeDirty = false;
 bool segChangeDirty = false;
 
 int alreadySetupGeom = 0;
-// ---------------------------------------IMGUI-------------------------------------
+
+// displayMode = 0 : Display only physical body
+// displayMode = 1 : Display only control points
+// displayMode = 2 : Display both
+int displayMode = 0;
+bool displayPhysicalBody = false;
+bool displayControlPts = false;
+// ---------------------------------------IMGUI PROPERTIES-------------------------------------
 
 void build_rho()
 {
@@ -157,37 +167,6 @@ void build_surface()
 	}
 
 	build_rho();
-// 	// Element density
-// 	auto& mesh_rho = meshes_rho[animationRhoIndex];
-// 	mesh_layers[0].LayerRho.resize(nelx);
-// 	for(int i = 0; i < nelx; i++)
-// 	{
-// 		mesh_layers[0].LayerRho[i] = mesh_rho[i];
-// 	}
-// 
-// 	mesh_layers[1].LayerRho.resize(nelz);
-// 	for(int i = 0; i < nelz; i++)
-// 	{
-// 		for(int j = 0; j < nelx; j++)
-// 		{
-// 			std::vector<float> onerow = mesh_rho[j][i];
-// 			mesh_layers[1].LayerRho[i].push_back(onerow);
-// 		}
-// 	}
-// 
-// 	mesh_layers[2].LayerRho.resize(nely);
-// 	for(int i = 0; i < nely; i++)
-// 	{
-// 		for(int j = 0; j < nelx; j++)
-// 		{
-// 			std::vector<float> onecolomn;
-// 			for(int k = 0; k < nelz; k++)
-// 			{
-// 				onecolomn.push_back(mesh_rho[j][k][i]);
-// 			}
-// 			mesh_layers[2].LayerRho[i].push_back(onecolomn);
-// 		}
-// 	}
 
 	for(int i = 0; i < 3; i++)
 	{
@@ -270,7 +249,7 @@ void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/matlab_small/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_middle/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -281,16 +260,16 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/matlab_small/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_middle/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/matlab_small/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_middle/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/matlab_small/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_middle/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
@@ -302,7 +281,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/matlab_small/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_middle/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -318,12 +297,12 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
-	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_middle/rho");
 	meshes_rho.resize(numRhoFiles);
 	for(int s = 0; s < numRhoFiles; s++)
 	{
 		std::vector<float> buffer_rho;
-		std::string path = "../../../Asset/matlab_small/rho/rho_" + std::to_string(s + 1) + ".bin";
+		std::string path = "../../../Asset/matlab_middle/rho/rho_" + std::to_string(s + 1) + ".bin";
 		read_float(path, buffer_rho);
 		for (int i = 0; i < nelx; i++)
 		{
@@ -424,6 +403,16 @@ void imguiSetup()
     {
 		ImGui::SeparatorText("Display Setup");
         {
+			ImGui::Text("Display mode");
+			{
+				ImGui::RadioButton("mode 1", &displayMode, 0); ImGui::SameLine();
+				ImGui::RadioButton("mode 2", &displayMode, 1); ImGui::SameLine();
+				ImGui::RadioButton("mode 3", &displayMode, 2); ImGui::SameLine();
+				HelpMarker("displayMode = 0 : Display only physical body;\n"
+							"displayMode = 1 : Display only control points;\n"
+							"displayMode = 2 : Display both");
+			}
+
 			if (ImGui::Button("Body/WireFrame"))
 				wireframe = !wireframe;
 			if (wireframe)
@@ -441,7 +430,7 @@ void imguiSetup()
 			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
 			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
 
-            if(ImGui::SliderInt("slider int", &numSegBetweenKnotsU, 1, 10))
+            if(ImGui::SliderInt("Tesselation density", &numSegBetweenKnotsU, 1, 10))
 			{
 				numSegBetweenKnotsV = numSegBetweenKnotsU;
 				segChangeDirty = true;
@@ -469,9 +458,6 @@ void imguiSetup()
 			static ImGuiComboFlags flags = 0;
 
 			// Using the generic BeginCombo() API, you have full control over how to display the combo contents.
-			// (your selection data could be an index, a pointer to the object, an id for the object, a flag intrusively
-			// stored in the object itself, etc.)
-			// const char* items[] = { "AAAA", "BBBB", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIII", "JJJJ", "KKKK", "LLLLLLL", "MMMM", "OOOOOOO" };
 			std::vector<std::string> items;
 			items.resize(meshes_rho.size());
 			for(int i = 0; i < meshes_rho.size(); i++)
@@ -526,15 +512,49 @@ bool InitScene()
 
 	// load shaders
 	// TODO: Add a more clear way (assetloader)
-	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/rendersurfacemy.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/rendersurfacemy.frag", &rendersurface)) {
+	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/rendersurfacemy.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/my/rendersurfacemy.frag", &rendersurface)) {
 		MYERROR("Could not load surface renderer shader");
 		return false;
 	}
 
-	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/tessellatesurfacemyRE.comp", &tessellatesurfacemy)) {
+	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/my/tessellatesurfacemyRE.comp", &tessellatesurfacemy)) {
 		MYERROR("Could not load compute shader");
 		return false;
 	}
+
+	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/renderspheremy.vert", 0, 0, "../../../Asset/Shaders/GLSL/my/renderspheremy.geom", "../../../Asset/Shaders/GLSL/my/renderspheremy.frag", &rendercontrolpts)) {
+		MYERROR("Could not load 'sphere' effect");
+		return false;
+	}
+
+	// FIXME: Shit code
+	// control points
+	glGenBuffers(1, &controlpointVBO);
+	
+	glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
+	glBufferData(GL_ARRAY_BUFFER, mesh_cp_vertices.size() * sizeof(Math::Vector3), NULL, GL_DYNAMIC_DRAW);
+
+	glGenVertexArrays(1, &controlpointVAO);
+	glBindVertexArray(controlpointVAO);
+	{
+		glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Math::Vector3), (const void*)0);
+	}
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	int numpoints = mesh_cp_vertices.size();
+	glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
+	Math::Vector3* vdata = (Math::Vector3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	{
+		// duplicate others
+		for (int i = 0; i < numpoints; i++) {
+			vdata[i] = mesh_cp_vertices[i];
+		}
+	}
+	glUnmapBuffer(GL_ARRAY_BUFFER);
 	
 	screenquad = new OpenGLScreenQuad();
 
@@ -557,6 +577,7 @@ void UninitScene()
 {
 	delete rendersurface;
 	delete tessellatesurfacemy;
+	delete rendercontrolpts;
 	delete screenquad;
 
 	OpenGLContentManager().Release();
@@ -695,7 +716,6 @@ void Tessellate()
 			surfacegroup[i] = surface;
 
 		}
-		// FIXME: 2023/3/23
 		alreadySetupGeom = 1;
 	}
 
@@ -771,36 +791,6 @@ void KeyUp(KeyCode key)
 {
 	switch (key) {
 
-	// case KeyCodeW:
-	// 	wireframe = !wireframe;
-	// 	break;
-
-	// case KeyCodeA:
-	// 	if(numSegBetweenKnotsU >= 10 && numSegBetweenKnotsV >= 10) {
-	// 		numSegBetweenKnotsU = 10;
-	// 		numSegBetweenKnotsV = 10;
-	// 	}
-	// 	else {
-	// 		numSegBetweenKnotsU += 2;
-	// 		numSegBetweenKnotsV += 2;
-	// 		alreadySetupGeom = 0;
-	// 		Tessellate();
-	// 	}
-	// 	break;
-
-	// case KeyCodeD:
-	// 	if(numSegBetweenKnotsU <= 1 && numSegBetweenKnotsV <= 1) {
-	// 		numSegBetweenKnotsU = 1;
-	// 		numSegBetweenKnotsV = 1;
-	// 	}
-	// 	else {
-	// 		numSegBetweenKnotsU -= 2;
-	// 		numSegBetweenKnotsV -= 2;
-	// 		alreadySetupGeom = 0;
-	// 		Tessellate();
-	// 	}
-	// 	break;
-
 	case KeyCodeQ:
 		mesh_cp_vertices[10].z -= 0.2f;
 		alreadySetupGeom = 0;
@@ -843,6 +833,19 @@ void Update(float delta)
 {
 	camera.Update(delta);
 
+	if(displayMode == 0) {
+		displayPhysicalBody = true;
+		displayControlPts = false;
+	}
+	else if(displayMode == 1) {
+		displayPhysicalBody = false;
+		displayControlPts = true;
+	}
+	else if(displayMode == 2) {
+		displayPhysicalBody = true;
+		displayControlPts = true;
+	}
+
 	if (rhoChangeDirty)
 	{
 		build_rho();
@@ -867,7 +870,6 @@ void Update(float delta)
 			animationRhoIndex = animationRhoIndex + 1;
 			Tessellate();
 		}
-		
 	}
 }
 
@@ -913,36 +915,55 @@ void Render(float alpha, float elapsedtime)
 
 	Math::MatrixMultiply(viewproj, view, proj);
 
-	if (wireframe)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	glDisable(GL_CULL_FACE);
-
-	rendersurface->SetMatrix("matViewProj", viewproj);
-	rendersurface->SetMatrix("matWorld", world);
-	rendersurface->SetMatrix("matWorldInv", world);
-	rendersurface->SetVector("lightDir", lightdir);
-	rendersurface->SetVector("eyePos", eye);
-	rendersurface->SetVector("outsideColor", outsidecolor);
-	rendersurface->SetVector("insideColor", insidecolor);
-	rendersurface->SetInt("isWireMode", wireframe);
-
-	rendersurface->SetFloat("elementRhoThreshold", elementRhoThreshold);
-
-	rendersurface->Begin();
+	if(displayControlPts)
 	{
-		// surface->DrawSubset(0);
-		for (int i = 0; i < 3; i++)
+		float pointsize[3] = {0.01f, 0.01f, 0.01f};
+		// render control points
+		rendercontrolpts->SetMatrix("matViewProj", viewproj);
+		rendercontrolpts->SetMatrix("matWorld", world);
+		rendercontrolpts->SetMatrix("matWorldInv", world);
+		rendercontrolpts->SetVector("pointSize", pointsize);
+		rendercontrolpts->Begin();
 		{
-			surfacegroup[i]->DrawSubset(0);
+			glBindVertexArray(controlpointVAO);
+			glDrawArrays(GL_POINTS, 0, mesh_cp_vertices.size());
 		}
+		rendercontrolpts->End();
 	}
-	rendersurface->End();
 
-	glEnable(GL_CULL_FACE);
+	if(displayPhysicalBody)
+	{
+		if (wireframe)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-	if (wireframe)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glDisable(GL_CULL_FACE);
+
+		rendersurface->SetMatrix("matViewProj", viewproj);
+		rendersurface->SetMatrix("matWorld", world);
+		rendersurface->SetMatrix("matWorldInv", world);
+		rendersurface->SetVector("lightDir", lightdir);
+		rendersurface->SetVector("eyePos", eye);
+		rendersurface->SetVector("outsideColor", outsidecolor);
+		rendersurface->SetVector("insideColor", insidecolor);
+		rendersurface->SetInt("isWireMode", wireframe);
+
+		rendersurface->SetFloat("elementRhoThreshold", elementRhoThreshold);
+
+		rendersurface->Begin();
+		{
+			// surface->DrawSubset(0);
+			for (int i = 0; i < 3; i++)
+			{
+				surfacegroup[i]->DrawSubset(0);
+			}
+		}
+		rendersurface->End();
+
+		glEnable(GL_CULL_FACE);
+
+		if (wireframe)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
 
 	// reset states
 	glEnable(GL_DEPTH_TEST);
