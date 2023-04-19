@@ -29,4 +29,5 @@ void main()
 		gl_Position = vec4(0.0);
 	else
 		gl_Position = matViewProj * wpos;
+	// gl_Position = matViewProj * wpos;
 }

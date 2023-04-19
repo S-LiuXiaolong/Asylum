@@ -249,7 +249,7 @@ void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/matlab_middle/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_small/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -260,16 +260,16 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/matlab_middle/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_small/nels.bin", buffer_nels);
 	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
 	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/matlab_middle/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_small/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/matlab_middle/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_small/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 	
 	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
@@ -281,7 +281,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/matlab_middle/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_small/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -297,12 +297,12 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
-	int numRhoFiles = GetFileNum("../../../Asset/matlab_middle/rho");
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
 	meshes_rho.resize(numRhoFiles);
 	for(int s = 0; s < numRhoFiles; s++)
 	{
 		std::vector<float> buffer_rho;
-		std::string path = "../../../Asset/matlab_middle/rho/rho_" + std::to_string(s + 1) + ".bin";
+		std::string path = "../../../Asset/matlab_small/rho/rho_" + std::to_string(s + 1) + ".bin";
 		read_float(path, buffer_rho);
 		for (int i = 0; i < nelx; i++)
 		{
@@ -430,7 +430,7 @@ void imguiSetup()
 			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
 			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
 
-            if(ImGui::SliderInt("Tesselation density", &numSegBetweenKnotsU, 1, 10))
+            if(ImGui::SliderInt("Tesselation density", &numSegBetweenKnotsU, 1, 15))
 			{
 				numSegBetweenKnotsV = numSegBetweenKnotsU;
 				segChangeDirty = true;

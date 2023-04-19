@@ -60,7 +60,7 @@ uniform int degreeW;
 uniform int numVtsBetweenKnotsU;
 uniform int numVtsBetweenKnotsV;
 
-// uniform float elementRhoThreshold;
+uniform float elementRhoThreshold;
 uniform int alreadySetupGeom;
 
 // vec4 <=> max degree 3 curves
@@ -419,6 +419,29 @@ void main()
 					index2 = groupIDz * (numControlPointsU - degreeU) * (numControlPointsV - degreeV) + groupIDx * (numControlPointsV - degreeV) + groupIDy;
 					float elementRho = elementRhoBuffer.data[index2];
 					surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
+				}
+			}
+		}
+
+		// STEP 3: fill index buffer
+		endU = endU == numVtsBetweenKnotsU ? (endU - 1) : endU;
+		endV = endV == numVtsBetweenKnotsV ? (endV - 1) : endV;
+
+		for(int s = 0; s < 2; s++)
+		{
+			for(int i = startU; i < endU; i++)
+			{
+				for(int j = startV; j < endV; j++)
+				{
+					index1 = (groupIDz * 2 + s) * numSegmentsU * numSegmentsV + (groupIDx * numSegBetweenKnotsU + i) * numSegmentsV + groupIDy * numSegBetweenKnotsV + j;
+
+					surfaceindices.data[index1].Indices[0] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+					surfaceindices.data[index1].Indices[1] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+					surfaceindices.data[index1].Indices[2] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+
+					surfaceindices.data[index1].Indices[3] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
+					surfaceindices.data[index1].Indices[4] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j + 1;
+					surfaceindices.data[index1].Indices[5] = (groupIDz * 2 + s) * numVerticesU * numVerticesV + (groupIDx * numVtsBetweenKnotsU + i + 1) * numVerticesV + groupIDy * numVtsBetweenKnotsV + j;
 				}
 			}
 		}
