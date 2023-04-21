@@ -38,7 +38,7 @@ void main()
 		//TODO: Modify here to display element density
 		// my_FragColor0.rgb = clamp(base.rgb * d + vec3(s), vec3(0.0), vec3(1.0));
 		// my_FragColor0.rgb = vec3(1.0, 1.0, 1.0);
-		my_FragColor0.rgb = vec3(1.0) - color;
+		my_FragColor0.rgb = color;
 		my_FragColor0.a = 1.0;
 	}
 }

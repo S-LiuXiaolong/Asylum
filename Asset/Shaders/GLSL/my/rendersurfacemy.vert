@@ -25,7 +25,7 @@ void main()
 	wnorm = (vec4(my_Normal, 0) * matWorldInv).xyz;
 	color = my_Color;
 
-	if(my_Color.x < elementRhoThreshold)
+	if(1.0 - my_Color.x < elementRhoThreshold)
 		gl_Position = vec4(0.0);
 	else
 		gl_Position = matViewProj * wpos;

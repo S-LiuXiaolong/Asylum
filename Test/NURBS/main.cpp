@@ -11,6 +11,13 @@
 #include "gl4ext.h"
 #include "basiccamera.h"
 
+// Enable High Performance Graphics while using Integrated Graphics.
+extern "C"
+{
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;		// Nvidia
+	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1; // AMD
+}
+
 #define MAX_NUM_SEGMENTS	100
 
 // helper macros
@@ -158,7 +165,7 @@ bool InitScene()
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
-	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClearDepth(1.0);
 
 	glEnable(GL_CULL_FACE);
@@ -491,7 +498,7 @@ void KeyUp(KeyCode key)
 		break;
 
 	case KeyCodeD:
-		numsegments = Math::Max<int>(numsegments - 10, 10);
+		numsegments = Math::Max<int>(numsegments - 10, 5);
 		Tessellate();
 		break;
 
@@ -613,7 +620,7 @@ void Render(float alpha, float elapsedtime)
 		glScissor(screenwidth - surfvpwidth - 10, screenheight - surfvpheight - 10, surfvpwidth, surfvpheight);
 	}
 
-	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
+	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
 

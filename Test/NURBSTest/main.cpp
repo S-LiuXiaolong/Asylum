@@ -17,15 +17,19 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_opengl3.h"
 
-// Enable High Performance Graphics while using Integrated Graphics. 
-extern "C" {
-	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001; // Nvidia 
+// Enable High Performance Graphics while using Integrated Graphics.
+extern "C"
+{
+	__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;		// Nvidia
 	__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1; // AMD
 }
 
 // helper macros
-#define TITLE				"NURBS tesselation"
-#define MYERROR(x)			{ std::cout << "* Error: " << x << "!\n"; }
+#define TITLE "NURBS tesselation"
+#define MYERROR(x)                              \
+	{                                           \
+		std::cout << "* Error: " << x << "!\n"; \
+	}
 
 #define DEGREE 2
 
@@ -41,27 +45,28 @@ struct NURBSLayerData
 NURBSLayerData mesh_layers[3];
 
 // sample variables
-Application*		app						= nullptr;
+Application *app = nullptr;
 
-OpenGLEffect*		rendersurface			= nullptr;
-OpenGLEffect*		tessellatesurfacemy		= nullptr;
-OpenGLEffect*		rendercontrolpts		= nullptr;
-OpenGLScreenQuad*	screenquad				= nullptr;
+OpenGLEffect *rendersurface = nullptr;
+OpenGLEffect *tessellatesurfacemy = nullptr;
+OpenGLEffect *rendercontrolpts = nullptr;
+OpenGLScreenQuad *screenquad = nullptr;
 uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
 
-std::vector<OpenGLMesh*>		surfacegroup;
-OpenGLMesh*		sphere			= nullptr;  // for drawing control points
+std::vector<OpenGLMesh *> surfacegroup;
+OpenGLMesh *sphere = nullptr; // for drawing control points
 
 GLuint controlpointVBO = 0;
 GLuint controlpointVAO = 0;
 
-BasicCamera			camera;
-float				selectiondx			= 0;
-float				selectiondy			= 0;
-int					numSegBetweenKnotsU = 1;
-int					numSegBetweenKnotsV = 1;
-float				elementRhoThreshold = 0.1f;
-bool				wireframe			= false;
+BasicCamera camera;
+float selectiondx = 0;
+float selectiondy = 0;
+int numSegBetweenKnotsU = 15;
+int numSegBetweenKnotsV = 15;
+// FIXME: elementRhoThreshold is fixed to 0.2 now
+float elementRhoThreshold = 0.0f;
+bool wireframe = false;
 
 void Tessellate();
 
@@ -74,8 +79,8 @@ std::vector<std::vector<std::vector<uint32_t>>> chan;
 std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho;
 
 // TODO: Maybe put these functions into another utility file?
-void read_float(std::string strFile, std::vector<float>& buffer);
-void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer);
+void read_float(std::string strFile, std::vector<float> &buffer);
+void read_uint32t(std::string strFile, std::vector<uint32_t> &buffer);
 
 // ---------------------------------------IMGUI PROPERTIES-------------------------------------
 bool animationPlaying = false;
@@ -95,21 +100,22 @@ bool displayControlPts = false;
 
 void build_rho()
 {
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++)
+	{
 		mesh_layers[i].LayerRho.clear();
 	}
-	auto& mesh_rho = meshes_rho[animationRhoIndex];
+	auto &mesh_rho = meshes_rho[animationRhoIndex];
 	// Element density
 	mesh_layers[0].LayerRho.resize(nelx);
-	for(int i = 0; i < nelx; i++)
+	for (int i = 0; i < nelx; i++)
 	{
 		mesh_layers[0].LayerRho[i] = mesh_rho[i];
 	}
 
 	mesh_layers[1].LayerRho.resize(nelz);
-	for(int i = 0; i < nelz; i++)
+	for (int i = 0; i < nelz; i++)
 	{
-		for(int j = 0; j < nelx; j++)
+		for (int j = 0; j < nelx; j++)
 		{
 			std::vector<float> onerow = mesh_rho[j][i];
 			mesh_layers[1].LayerRho[i].push_back(onerow);
@@ -117,12 +123,12 @@ void build_rho()
 	}
 
 	mesh_layers[2].LayerRho.resize(nely);
-	for(int i = 0; i < nely; i++)
+	for (int i = 0; i < nely; i++)
 	{
-		for(int j = 0; j < nelx; j++)
+		for (int j = 0; j < nelx; j++)
 		{
 			std::vector<float> onecolomn;
-			for(int k = 0; k < nelz; k++)
+			for (int k = 0; k < nelz; k++)
 			{
 				onecolomn.push_back(mesh_rho[j][k][i]);
 			}
@@ -133,19 +139,20 @@ void build_rho()
 
 void build_surface()
 {
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 3; i++)
+	{
 		mesh_layers[i].LayerRho.clear();
 	}
 	mesh_layers[0].cptsIndex.resize(numCptx);
-	for(int i = 0; i < numCptx; i++)
+	for (int i = 0; i < numCptx; i++)
 	{
 		mesh_layers[0].cptsIndex[i] = chan[i];
 	}
 
 	mesh_layers[1].cptsIndex.resize(numCptz);
-	for(int i = 0; i < numCptz; i++)
+	for (int i = 0; i < numCptz; i++)
 	{
-		for(int j = 0; j < numCptx; j++)
+		for (int j = 0; j < numCptx; j++)
 		{
 			std::vector<uint32_t> onerow = chan[j][i];
 			mesh_layers[1].cptsIndex[i].push_back(onerow);
@@ -153,12 +160,12 @@ void build_surface()
 	}
 
 	mesh_layers[2].cptsIndex.resize(numCpty);
-	for(int i = 0; i < numCpty; i++)
+	for (int i = 0; i < numCpty; i++)
 	{
-		for(int j = 0; j < numCptx; j++)
+		for (int j = 0; j < numCptx; j++)
 		{
 			std::vector<uint32_t> onecolomn;
-			for(int k = 0; k < numCptz; k++)
+			for (int k = 0; k < numCptz; k++)
 			{
 				onecolomn.push_back(chan[j][k][i]);
 			}
@@ -168,10 +175,10 @@ void build_surface()
 
 	build_rho();
 
-	for(int i = 0; i < 3; i++)
+	for (int i = 0; i < 3; i++)
 	{
-		auto& cptsIndex = mesh_layers[i].cptsIndex;
-		
+		auto &cptsIndex = mesh_layers[i].cptsIndex;
+
 		int numCptsU = cptsIndex[0].size();
 		int numCptsV = cptsIndex[0][0].size();
 		int numCptsW = cptsIndex.size();
@@ -179,7 +186,7 @@ void build_surface()
 		std::vector<std::vector<std::vector<float>>> wts(
 			numCptsW, std::vector<std::vector<float>>(numCptsU, std::vector<float>(numCptsV, 0)));
 
-		for(int axisW = 0; axisW < numCptsW; axisW++)
+		for (int axisW = 0; axisW < numCptsW; axisW++)
 		{
 			for (int axisU = 0; axisU < numCptsU; axisU++)
 			{
@@ -194,13 +201,23 @@ void build_surface()
 		mesh_layers[i].weights = wts;
 
 		std::vector<float> knotu, knotv, knotw;
-		switch (i) {
-		case 0: 
-			knotu = knotz; knotv = knoty; knotw = knotx; break;
+		switch (i)
+		{
+		case 0:
+			knotu = knotz;
+			knotv = knoty;
+			knotw = knotx;
+			break;
 		case 1:
-			knotu = knotx; knotv = knoty; knotw = knotz; break;
+			knotu = knotx;
+			knotv = knoty;
+			knotw = knotz;
+			break;
 		case 2:
-			knotu = knotx; knotv = knotz; knotw = knoty; break;
+			knotu = knotx;
+			knotv = knotz;
+			knotw = knoty;
+			break;
 		}
 		mesh_layers[i].knotU = knotu;
 		mesh_layers[i].knotV = knotv;
@@ -208,7 +225,7 @@ void build_surface()
 	}
 }
 
-int GetFileNum(const std::string& inPath)
+int GetFileNum(const std::string &inPath)
 {
 	int fileNum = 0;
 
@@ -218,18 +235,21 @@ int GetFileNum(const std::string& inPath)
 
 	while (!q.empty())
 	{
-		std::string item = q.front(); q.pop();
+		std::string item = q.front();
+		q.pop();
 
 		std::string path = item + "\\*";
 		struct _finddata_t fileinfo;
 		auto handle = _findfirst(path.c_str(), &fileinfo);
-		if (handle == -1) continue;
+		if (handle == -1)
+			continue;
 
 		while (!_findnext(handle, &fileinfo))
 		{
 			if (fileinfo.attrib & _A_SUBDIR)
 			{
-				if (strcmp(fileinfo.name, ".") == 0 || strcmp(fileinfo.name, "..") == 0)continue;
+				if (strcmp(fileinfo.name, ".") == 0 || strcmp(fileinfo.name, "..") == 0)
+					continue;
 				q.push(item + "\\" + fileinfo.name);
 			}
 			else
@@ -244,6 +264,34 @@ int GetFileNum(const std::string& inPath)
 	return fileNum;
 }
 
+std::vector<bool> IntervalMerging(std::vector<float> onelineRho)
+{
+	int nel = onelineRho.size();
+	std::vector<bool> isBoundOneLine(nel);
+	for (int indexLeft = 0; indexLeft < onelineRho.size();)
+	{
+		int indexRight = indexLeft;
+		if (onelineRho[indexLeft] < elementRhoThreshold)
+		{
+			indexLeft++;
+			continue;
+		}
+		else
+		{
+			while (onelineRho[indexRight] >= elementRhoThreshold)
+			{
+				indexRight++;
+				if (indexRight == onelineRho.size())
+					break;
+			}
+			isBoundOneLine[indexLeft] = true;
+			isBoundOneLine[indexRight - 1] = true;
+
+			indexLeft = indexRight;
+		}
+	}
+	return isBoundOneLine;
+}
 
 void build_mesh()
 {
@@ -255,14 +303,18 @@ void build_mesh()
 
 	for (int i = 0; i < buffer_cpts.size() / 3; i++)
 	{
-		mesh_cp_vertices[i] = { buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2] };
+		mesh_cp_vertices[i] = {buffer_cpts[i * 3], buffer_cpts[i * 3 + 1], buffer_cpts[i * 3 + 2]};
 	}
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
 	read_uint32t("../../../Asset/matlab_small/nels.bin", buffer_nels);
-	nelx = buffer_nels[0]; nely = buffer_nels[1]; nelz = buffer_nels[2];
-	numCptx = buffer_nels[0] + DEGREE; numCpty = buffer_nels[1] + DEGREE; numCptz = buffer_nels[2] + DEGREE;
+	nelx = buffer_nels[0];
+	nely = buffer_nels[1];
+	nelz = buffer_nels[2];
+	numCptx = buffer_nels[0] + DEGREE;
+	numCpty = buffer_nels[1] + DEGREE;
+	numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
 	read_float("../../../Asset/matlab_small/weights.bin", mesh_cp_weights);
@@ -271,10 +323,13 @@ void build_mesh()
 	std::vector<float> buffer_knots;
 	read_float("../../../Asset/matlab_small/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
-	
-	auto knotxBegin = buffer_knots.begin(); auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
-	auto knotyBegin = buffer_knots.begin() + rowLength; auto knotyEnd = buffer_knots.begin() + rowLength + numCpty + 2 + 1;
-	auto knotzBegin = buffer_knots.begin() + rowLength * 2; auto knotzEnd = buffer_knots.begin() + rowLength * 2 + numCptz + 2 + 1;
+
+	auto knotxBegin = buffer_knots.begin();
+	auto knotxEnd = buffer_knots.begin() + numCptx + 2 + 1;
+	auto knotyBegin = buffer_knots.begin() + rowLength;
+	auto knotyEnd = buffer_knots.begin() + rowLength + numCpty + 2 + 1;
+	auto knotzBegin = buffer_knots.begin() + rowLength * 2;
+	auto knotzEnd = buffer_knots.begin() + rowLength * 2 + numCptz + 2 + 1;
 	knotx.assign(knotxBegin, knotxEnd);
 	knoty.assign(knotyBegin, knotyEnd);
 	knotz.assign(knotzBegin, knotzEnd);
@@ -299,7 +354,7 @@ void build_mesh()
 
 	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
 	meshes_rho.resize(numRhoFiles);
-	for(int s = 0; s < numRhoFiles; s++)
+	for (int s = 0; s < numRhoFiles; s++)
 	{
 		std::vector<float> buffer_rho;
 		std::string path = "../../../Asset/matlab_small/rho/rho_" + std::to_string(s + 1) + ".bin";
@@ -318,13 +373,102 @@ void build_mesh()
 			}
 			meshes_rho[s].push_back(face);
 		}
+
+#pragma region Merging
+		std::vector<std::vector<std::vector<bool>>> isBound(nelx, std::vector<std::vector<bool>>(nelz, std::vector<bool>(nely, false)));
+		auto &mesh_rho = meshes_rho[s];
+
+		for (int i = 0; i < nelx; i++)
+		{
+			for (int j = 0; j < nelz; j++)
+			{
+				std::vector<float> onelineRhoTowardY;
+
+				for (int k = 0; k < nely; k++)
+				{
+					if (mesh_rho[i][j][k] < elementRhoThreshold)
+						onelineRhoTowardY.push_back(0.0f);
+					else
+						onelineRhoTowardY.push_back(mesh_rho[i][j][k]);
+				}
+
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardY);
+				for (int k = 0; k < nely; k++)
+				{
+					if (isBound[i][j][k] == true)
+						continue;
+					else
+						isBound[i][j][k] = isBoundOneLine[k];
+				}
+			}
+		}
+
+		for (int i = 0; i < nelx; i++)
+		{
+			for (int j = 0; j < nely; j++)
+			{
+				std::vector<float> onelineRhoTowardZ;
+				for (int k = 0; k < nelz; k++)
+				{
+					if (mesh_rho[i][k][j] < elementRhoThreshold)
+						onelineRhoTowardZ.push_back(0.0f);
+					else
+						onelineRhoTowardZ.push_back(mesh_rho[i][k][j]);
+				}
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardZ);
+				for (int k = 0; k < nelz; k++)
+				{
+					if (isBound[i][k][j] == true)
+						continue;
+					else
+						isBound[i][k][j] = isBoundOneLine[k];
+				}
+			}
+		}
+
+		for (int i = 0; i < nelz; i++)
+		{
+			for (int j = 0; j < nely; j++)
+			{
+				std::vector<float> onelineRhoTowardX;
+				for (int k = 0; k < nelx; k++)
+				{
+					if (mesh_rho[k][i][j] < elementRhoThreshold)
+						onelineRhoTowardX.push_back(0.0f);
+					else
+						onelineRhoTowardX.push_back(mesh_rho[k][i][j]);
+				}
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardX);
+				for (int k = 0; k < nelx; k++)
+				{
+					if (isBound[k][i][j] == true)
+						continue;
+					else
+						isBound[k][i][j] = isBoundOneLine[k];
+				}
+			}
+		}
+
+		for (int i = 0; i < nelx; i++)
+		{
+			for (int j = 0; j < nelz; j++)
+			{
+				for (int k = 0; k < nely; k++)
+				{
+					if (isBound[i][j][k] == false)
+						meshes_rho[s][i][j][k] = -1.0f;
+				}
+			}
+		}
+#pragma endregion Merging
+
 	}
 
 
 	build_surface();
 }
 
-void read_float(std::string strFile, std::vector<float>& buffer)
+void read_float(std::string strFile, std::vector<float> &buffer)
 {
 	float temp;
 	std::ifstream infile(strFile.c_str(), std::ifstream::binary);
@@ -340,7 +484,7 @@ void read_float(std::string strFile, std::vector<float>& buffer)
 
 	printf("The file: [%s] has: %ld(byte) ..... \n", strFile.c_str(), size);
 
-	while (infile.read((char*)&temp, sizeof(float)))
+	while (infile.read((char *)&temp, sizeof(float)))
 	{
 		int readedBytes = infile.gcount();
 		// printf("%f\n", temp);
@@ -348,7 +492,7 @@ void read_float(std::string strFile, std::vector<float>& buffer)
 	}
 }
 
-void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer)
+void read_uint32t(std::string strFile, std::vector<uint32_t> &buffer)
 {
 	uint32_t temp;
 	std::ifstream infile(strFile.c_str(), std::ifstream::binary);
@@ -364,7 +508,7 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer)
 
 	printf("The file: [%s] has: %ld(byte) ..... \n", strFile.c_str(), size);
 
-	while (infile.read((char*)&temp, sizeof(uint32_t)))
+	while (infile.read((char *)&temp, sizeof(uint32_t)))
 	{
 		int readedBytes = infile.gcount();
 		// printf("%f\n", temp);
@@ -372,45 +516,48 @@ void read_uint32t(std::string strFile, std::vector<uint32_t>& buffer)
 	}
 }
 
-void HelpMarker(const char* desc)
+void HelpMarker(const char *desc)
 {
-    ImGui::TextDisabled("(?)");
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
-    {
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-        ImGui::TextUnformatted(desc);
-        ImGui::PopTextWrapPos();
-        ImGui::EndTooltip();
-    }
+	ImGui::TextDisabled("(?)");
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort) && ImGui::BeginTooltip())
+	{
+		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+		ImGui::TextUnformatted(desc);
+		ImGui::PopTextWrapPos();
+		ImGui::EndTooltip();
+	}
 }
 
 void imguiSetup()
 {
 	// TODO: Add all imgui widgets here.
 	// TODO: Show all control points
-	//show Main Window
+	// show Main Window
 	ImGui::ShowDemoWindow();
 
-    if (ImGui::CollapsingHeader("Style Configuration"))
-    {
-        {
-            ImGui::ShowStyleEditor();
-            ImGui::Spacing();
-        }
-    }
+	if (ImGui::CollapsingHeader("Style Configuration"))
+	{
+		{
+			ImGui::ShowStyleEditor();
+			ImGui::Spacing();
+		}
+	}
 
-    if (ImGui::CollapsingHeader("Display Control"))
-    {
+	if (ImGui::CollapsingHeader("Display Control"))
+	{
 		ImGui::SeparatorText("Display Setup");
-        {
+		{
 			ImGui::Text("Display mode");
 			{
-				ImGui::RadioButton("mode 1", &displayMode, 0); ImGui::SameLine();
-				ImGui::RadioButton("mode 2", &displayMode, 1); ImGui::SameLine();
-				ImGui::RadioButton("mode 3", &displayMode, 2); ImGui::SameLine();
+				ImGui::RadioButton("mode 1", &displayMode, 0);
+				ImGui::SameLine();
+				ImGui::RadioButton("mode 2", &displayMode, 1);
+				ImGui::SameLine();
+				ImGui::RadioButton("mode 3", &displayMode, 2);
+				ImGui::SameLine();
 				HelpMarker("displayMode = 0 : Display only physical body;\n"
-							"displayMode = 1 : Display only control points;\n"
-							"displayMode = 2 : Display both");
+						   "displayMode = 1 : Display only control points;\n"
+						   "displayMode = 2 : Display both");
 			}
 
 			if (ImGui::Button("Body/WireFrame"))
@@ -426,17 +573,18 @@ void imguiSetup()
 				ImGui::Text("Physical body mode");
 			}
 
-            ImGui::InputFloat("Rho Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
+			ImGui::InputFloat("Rho Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
 			elementRhoThreshold = elementRhoThreshold > 1.0f ? 1.0f : elementRhoThreshold;
 			elementRhoThreshold = elementRhoThreshold < 0.0f ? 0.0f : elementRhoThreshold;
 
-            if(ImGui::SliderInt("Tesselation density", &numSegBetweenKnotsU, 1, 15))
+			if (ImGui::SliderInt("Tesselation density", &numSegBetweenKnotsU, 1, 30))
 			{
 				numSegBetweenKnotsV = numSegBetweenKnotsU;
 				segChangeDirty = true;
 			}
-            ImGui::SameLine(); HelpMarker("CTRL+click to input value.");
-        }
+			ImGui::SameLine();
+			HelpMarker("CTRL+click to input value.");
+		}
 
 		ImGui::SeparatorText("Animation");
 		{
@@ -460,13 +608,13 @@ void imguiSetup()
 			// Using the generic BeginCombo() API, you have full control over how to display the combo contents.
 			std::vector<std::string> items;
 			items.resize(meshes_rho.size());
-			for(int i = 0; i < meshes_rho.size(); i++)
+			for (int i = 0; i < meshes_rho.size(); i++)
 			{
 				std::string filename = "rho_" + std::to_string(i + 1) + ".bin";
 				items[i] = filename;
 			}
 
-			const char* combo_preview_value = items[animationRhoIndex].c_str();  // Pass in the preview value visible before opening the combo (it could be anything)
+			const char *combo_preview_value = items[animationRhoIndex].c_str(); // Pass in the preview value visible before opening the combo (it could be anything)
 			if (ImGui::BeginCombo("combo", combo_preview_value, flags))
 			{
 				for (int n = 0; n < meshes_rho.size(); n++)
@@ -480,18 +628,18 @@ void imguiSetup()
 					// Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
 					if (is_selected)
 						ImGui::SetItemDefaultFocus();
-						// animationRhoIndex = n;
+					// animationRhoIndex = n;
 				}
 				ImGui::EndCombo();
 			}
-
 		}
-    }
+	}
 }
 
 bool InitScene()
 {
-	if (GLExtensions::GLVersion < GLExtensions::GL_4_3) {
+	if (GLExtensions::GLVersion < GLExtensions::GL_4_3)
+	{
 		MYERROR("This sample requires at least OpenGL 4.3");
 		return false;
 	}
@@ -499,7 +647,7 @@ bool InitScene()
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
-	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClearDepth(1.0);
 
 	glEnable(GL_CULL_FACE);
@@ -512,17 +660,20 @@ bool InitScene()
 
 	// load shaders
 	// TODO: Add a more clear way (assetloader)
-	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/rendersurfacemy.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/my/rendersurfacemy.frag", &rendersurface)) {
+	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/rendersurfacemy.vert", 0, 0, 0, "../../../Asset/Shaders/GLSL/my/rendersurfacemy.frag", &rendersurface))
+	{
 		MYERROR("Could not load surface renderer shader");
 		return false;
 	}
 
-	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/my/tessellatesurfacemyRE.comp", &tessellatesurfacemy)) {
+	if (!GLCreateComputeProgramFromFile("../../../Asset/Shaders/GLSL/my/tessellatesurfacemyRE.comp", &tessellatesurfacemy))
+	{
 		MYERROR("Could not load compute shader");
 		return false;
 	}
 
-	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/renderspheremy.vert", 0, 0, "../../../Asset/Shaders/GLSL/my/renderspheremy.geom", "../../../Asset/Shaders/GLSL/my/renderspheremy.frag", &rendercontrolpts)) {
+	if (!GLCreateEffectFromFile("../../../Asset/Shaders/GLSL/my/renderspheremy.vert", 0, 0, "../../../Asset/Shaders/GLSL/my/renderspheremy.geom", "../../../Asset/Shaders/GLSL/my/renderspheremy.frag", &rendercontrolpts))
+	{
 		MYERROR("Could not load 'sphere' effect");
 		return false;
 	}
@@ -530,7 +681,7 @@ bool InitScene()
 	// FIXME: Shit code
 	// control points
 	glGenBuffers(1, &controlpointVBO);
-	
+
 	glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
 	glBufferData(GL_ARRAY_BUFFER, mesh_cp_vertices.size() * sizeof(Math::Vector3), NULL, GL_DYNAMIC_DRAW);
 
@@ -540,22 +691,23 @@ bool InitScene()
 		glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
 
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Math::Vector3), (const void*)0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Math::Vector3), (const void *)0);
 	}
 	glBindVertexArray(0);
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 
 	int numpoints = mesh_cp_vertices.size();
 	glBindBuffer(GL_ARRAY_BUFFER, controlpointVBO);
-	Math::Vector3* vdata = (Math::Vector3*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+	Math::Vector3 *vdata = (Math::Vector3 *)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 	{
 		// duplicate others
-		for (int i = 0; i < numpoints; i++) {
+		for (int i = 0; i < numpoints; i++)
+		{
 			vdata[i] = mesh_cp_vertices[i];
 		}
 	}
 	glUnmapBuffer(GL_ARRAY_BUFFER);
-	
+
 	screenquad = new OpenGLScreenQuad();
 
 	// tessellate for the first time
@@ -583,36 +735,34 @@ void UninitScene()
 	OpenGLContentManager().Release();
 }
 
-
 // FIXME: 2023/3/23
 void Tessellate()
 {
 	if (!alreadySetupGeom)
 	{
-// 		for (auto& surface : surfacegroup)
-// 		{
-// 			delete surface;
-// 		}
-// 		surfacegroup.clear();
+		// 		for (auto& surface : surfacegroup)
+		// 		{
+		// 			delete surface;
+		// 		}
+		// 		surfacegroup.clear();
 
 		surfacegroup.resize(3);
 
 		OpenGLVertexElement decl[] = {
-			{ 0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0 },
-			{ 0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0 },
-			{ 0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
-			{ 0xff, 0, 0, 0, 0 }
-		};
+			{0, 0, GLDECLTYPE_FLOAT4, GLDECLUSAGE_POSITION, 0},
+			{0, 16, GLDECLTYPE_FLOAT4, GLDECLUSAGE_NORMAL, 0},
+			{0, 32, GLDECLTYPE_FLOAT4, GLDECLUSAGE_COLOR, 0},
+			{0xff, 0, 0, 0, 0}};
 
 		for (int i = 0; i < 3; i++)
 		{
-			NURBSLayerData& layerData = mesh_layers[i];
-			auto& cptsIndex = layerData.cptsIndex;
-			auto& weights = layerData.weights;
-			auto& knotU = layerData.knotU;
-			auto& knotV = layerData.knotV;
-			auto& knotW = layerData.knotW;
-			auto& rho = layerData.LayerRho;
+			NURBSLayerData &layerData = mesh_layers[i];
+			auto &cptsIndex = layerData.cptsIndex;
+			auto &weights = layerData.weights;
+			auto &knotU = layerData.knotU;
+			auto &knotV = layerData.knotV;
+			auto &knotW = layerData.knotW;
+			auto &rho = layerData.LayerRho;
 
 			int numCptU = cptsIndex[0].size();
 			int numCptV = cptsIndex[0][0].size();
@@ -626,25 +776,29 @@ void Tessellate()
 			int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
 			int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
 
-			OpenGLMesh* surface = nullptr;
+			OpenGLMesh *surface = nullptr;
 
 			// create surface
 			int MaxSurfaceVertices = surfaceNum * numVerticesU * numVerticesV;
 			int MaxSurfaceIndices = surfaceNum * numSegmentsU * numSegmentsV * 6;
-			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface)) {
+			if (!GLCreateMesh(MaxSurfaceVertices, MaxSurfaceIndices, GLMESH_32BIT, decl, &surface))
+			{
 				MYERROR("Could not create surface");
 				return;
 			}
 
 			// update surface cvs and weights (STL 2D vector will cause fault)
-			Math::Vector4* surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
-			float* surfacewts = new float[numCptW * numCptU * numCptV];
-			float* surfacerho = new float[nelW * nelU * nelV];
+			Math::Vector4 *surfacecvs = new Math::Vector4[numCptW * numCptU * numCptV];
+			float *surfacewts = new float[numCptW * numCptU * numCptV];
+			float *surfacerho = new float[nelW * nelU * nelV];
 			uint32_t index;
 
-			for (int s = 0; s < numCptW; s++) {
-				for (int m = 0; m < numCptU; m++) {
-					for (int n = 0; n < numCptV; n++) {
+			for (int s = 0; s < numCptW; s++)
+			{
+				for (int m = 0; m < numCptU; m++)
+				{
+					for (int n = 0; n < numCptV; n++)
+					{
 						index = s * numCptU * numCptV + m * numCptV + n;
 						surfacecvs[index][0] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].x;
 						surfacecvs[index][1] = mesh_cp_vertices[cptsIndex[s][m][n] - 1].y;
@@ -655,9 +809,12 @@ void Tessellate()
 				}
 			}
 
-			for (int s = 0; s < nelW; s++) {
-				for (int m = 0; m < nelU; m++) {
-					for (int n = 0; n < nelV; n++) {
+			for (int s = 0; s < nelW; s++)
+			{
+				for (int m = 0; m < nelU; m++)
+				{
+					for (int n = 0; n < nelV; n++)
+					{
 						index = s * nelU * nelV + m * nelV + n;
 						surfacerho[index] = rho[s][m][n];
 					}
@@ -714,7 +871,6 @@ void Tessellate()
 			delete[] surfacecvs;
 
 			surfacegroup[i] = surface;
-
 		}
 		alreadySetupGeom = 1;
 	}
@@ -723,13 +879,13 @@ void Tessellate()
 	{
 		for (int i = 0; i < 3; i++)
 		{
-			NURBSLayerData& layerData = mesh_layers[i];
-			auto& cptsIndex = layerData.cptsIndex;
-			auto& weights = layerData.weights;
-			auto& knotU = layerData.knotU;
-			auto& knotV = layerData.knotV;
-			auto& knotW = layerData.knotW;
-			auto& rho = layerData.LayerRho;
+			NURBSLayerData &layerData = mesh_layers[i];
+			auto &cptsIndex = layerData.cptsIndex;
+			auto &weights = layerData.weights;
+			auto &knotU = layerData.knotU;
+			auto &knotV = layerData.knotV;
+			auto &knotW = layerData.knotW;
+			auto &rho = layerData.LayerRho;
 
 			int numCptU = cptsIndex[0].size();
 			int numCptV = cptsIndex[0][0].size();
@@ -738,12 +894,15 @@ void Tessellate()
 			int nelU = numCptU - DEGREE, nelV = numCptV - DEGREE, nelW = numCptW - DEGREE;
 
 			// create surface
-			float* surfacerho = new float[nelW * nelU * nelV];
+			float *surfacerho = new float[nelW * nelU * nelV];
 			uint32_t index;
 
-			for (int s = 0; s < nelW; s++) {
-				for (int m = 0; m < nelU; m++) {
-					for (int n = 0; n < nelV; n++) {
+			for (int s = 0; s < nelW; s++)
+			{
+				for (int m = 0; m < nelU; m++)
+				{
+					for (int n = 0; n < nelV; n++)
+					{
 						index = s * nelU * nelV + m * nelV + n;
 						surfacerho[index] = rho[s][m][n];
 					}
@@ -789,7 +948,8 @@ void Tessellate()
 // TODO: Add to imgui
 void KeyUp(KeyCode key)
 {
-	switch (key) {
+	switch (key)
+	{
 
 	case KeyCodeQ:
 		mesh_cp_vertices[10].z -= 0.2f;
@@ -814,14 +974,15 @@ void MouseMove(int32_t x, int32_t y, int16_t dx, int16_t dy)
 	uint32_t screenheight = app->GetClientHeight();
 	uint8_t state = app->GetMouseButtonState();
 
-	if (state & MouseButtonLeft) {
+	if (state & MouseButtonLeft)
+	{
 		int left = 0;
 		int right = screenwidth;
 		int top = 0;
 		int bottom = screenheight;
 
 		if (((x >= left && x <= right) &&
-			(y >= top && y <= bottom)))
+			 (y >= top && y <= bottom)))
 		{
 			camera.OrbitRight(Math::DegreesToRadians(dx));
 			camera.OrbitUp(Math::DegreesToRadians(dy));
@@ -829,19 +990,27 @@ void MouseMove(int32_t x, int32_t y, int16_t dx, int16_t dy)
 	}
 }
 
+void MouseScroll(int32_t x, int32_t y, int16_t dz)
+{
+	camera.Zoom(dz * 0.5f);
+}
+
 void Update(float delta)
 {
 	camera.Update(delta);
 
-	if(displayMode == 0) {
+	if (displayMode == 0)
+	{
 		displayPhysicalBody = true;
 		displayControlPts = false;
 	}
-	else if(displayMode == 1) {
+	else if (displayMode == 1)
+	{
 		displayPhysicalBody = false;
 		displayControlPts = true;
 	}
-	else if(displayMode == 2) {
+	else if (displayMode == 2)
+	{
 		displayPhysicalBody = true;
 		displayControlPts = true;
 	}
@@ -862,10 +1031,12 @@ void Update(float delta)
 
 	if (animationPlaying)
 	{
-		if (animationRhoIndex >= (meshes_rho.size() - 1)) {
+		if (animationRhoIndex >= (meshes_rho.size() - 1))
+		{
 			animationRhoIndex = meshes_rho.size() - 1;
 		}
-		else {
+		else
+		{
 			build_rho();
 			animationRhoIndex = animationRhoIndex + 1;
 			Tessellate();
@@ -891,16 +1062,16 @@ void Render(float alpha, float elapsedtime)
 	Math::Matrix world, view, proj;
 	Math::Matrix viewproj;
 
-	Math::Vector4 lightdir			= { 1, 1, -1, 0 };
+	Math::Vector4 lightdir = {1, 1, -1, 0};
 	Math::Vector3 eye;
 
-	Math::Color	outsidecolor(0.75f, 0.75f, 0.8f, 1);
-	Math::Color	insidecolor(1, 0.66f, 0.066f, 1);
+	Math::Color outsidecolor(0.75f, 0.75f, 0.8f, 1);
+	Math::Color insidecolor(1, 0.66f, 0.066f, 1);
 
 	Math::MatrixIdentity(world);
 
-	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
 
 	glEnable(GL_DEPTH_TEST);
@@ -915,7 +1086,7 @@ void Render(float alpha, float elapsedtime)
 
 	Math::MatrixMultiply(viewproj, view, proj);
 
-	if(displayControlPts)
+	if (displayControlPts)
 	{
 		float pointsize[3] = {0.01f, 0.01f, 0.01f};
 		// render control points
@@ -931,7 +1102,7 @@ void Render(float alpha, float elapsedtime)
 		rendercontrolpts->End();
 	}
 
-	if(displayPhysicalBody)
+	if (displayPhysicalBody)
 	{
 		if (wireframe)
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -981,12 +1152,13 @@ void Render(float alpha, float elapsedtime)
 	app->Present();
 }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
 	app = Application::Create(1360, 768);
 	app->SetTitle(TITLE);
 
-	if (!app->InitializeDriverInterface(GraphicsAPIOpenGL)) {
+	if (!app->InitializeDriverInterface(GraphicsAPIOpenGL))
+	{
 		delete app;
 		return 1;
 	}
@@ -997,7 +1169,8 @@ int main(int argc, char* argv[])
 	int max_compute_work_group_size[3];
 	int max_compute_work_group_invocations;
 
-	for (int idx = 0; idx < 3; idx++) {
+	for (int idx = 0; idx < 3; idx++)
+	{
 		glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_COUNT, idx, &max_compute_work_group_count[idx]);
 		glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, idx, &max_compute_work_group_size[idx]);
 	}
@@ -1020,6 +1193,7 @@ int main(int argc, char* argv[])
 	app->RenderCallback = Render;
 	app->KeyUpCallback = KeyUp;
 	app->MouseMoveCallback = MouseMove;
+	app->MouseScrollCallback = MouseScroll;
 
 	app->Run();
 	delete app;

@@ -74,6 +74,37 @@ int GetFileNum(const std::string& inPath)
 	return fileNum;
 }
 
+// FIXME: elementRhoThreshold is 0.2 now
+float elementRhoThreshold = 0.2f;
+
+std::vector<bool> IntervalMerging(std::vector<float> onelineRho)
+{
+	int nel = onelineRho.size();
+	std::vector<bool> isBoundOneLine(nel);
+	for (int indexLeft = 0; indexLeft < onelineRho.size();)
+	{
+		int indexRight = indexLeft;
+		if (onelineRho[indexLeft] < elementRhoThreshold)
+		{
+			indexLeft++;
+			continue;
+		}
+		else
+		{
+			while (onelineRho[indexRight] >= elementRhoThreshold)
+			{
+				indexRight++;
+				if (indexRight == onelineRho.size())
+					break;
+			}
+			isBoundOneLine[indexLeft] = true;
+			isBoundOneLine[indexRight - 1] = true;
+
+			indexLeft = indexRight;
+		}
+	}
+	return isBoundOneLine;
+}
 
 void build_mesh()
 {
@@ -149,7 +180,7 @@ void build_mesh()
 			meshes_rho[s].push_back(face);
 		}
 
-		std::vector<std::vector<std::vector<bool>>> isBound(nelx, std::vector<std::vector<bool>>(nelz, std::vector<bool>(nely, 0)));
+		std::vector<std::vector<std::vector<bool>>> isBound(nelx, std::vector<std::vector<bool>>(nelz, std::vector<bool>(nely, false)));
 		auto& mesh_rho = meshes_rho[s];
 
 		for (int i = 0; i < nelx; i++)
@@ -157,24 +188,46 @@ void build_mesh()
 			for (int j = 0; j < nelz; j++)
 			{
 				std::vector<float> onelineRhoTowardY;
+				
 				for (int k = 0; k < nely; k++)
 				{
-					onelineRhoTowardY.push_back(mesh_rho[i][j][k]);
+					if(mesh_rho[i][j][k] < elementRhoThreshold)
+						onelineRhoTowardY.push_back(0.0f);
+					else
+						onelineRhoTowardY.push_back(mesh_rho[i][j][k]);
 				}
 
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardY);
+				for (int k = 0; k < nely; k++)
+				{
+					if (isBound[i][j][k] == true)
+						continue;
+					else
+						isBound[i][j][k] = isBoundOneLine[k];
+				}
 			}
 		}
 
-		for (int i = 0; i < nelx; i++)
+		for (int i = 0; i < nelx;  i++)
 		{
 			for (int j = 0; j < nely; j++)
 			{
 				std::vector<float> onelineRhoTowardZ;
 				for (int k = 0; k < nelz; k++)
 				{
-					onelineRhoTowardZ.push_back(mesh_rho[i][k][j]);
+					if (mesh_rho[i][k][j] < elementRhoThreshold)
+						onelineRhoTowardZ.push_back(0.0f);
+					else
+						onelineRhoTowardZ.push_back(mesh_rho[i][k][j]);
 				}
-				
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardZ);
+				for (int k = 0; k < nelz; k++)
+				{
+					if (isBound[i][k][j] == true)
+						continue;
+					else
+						isBound[i][k][j] = isBoundOneLine[k];
+				}
 			}
 		}
 
@@ -185,13 +238,33 @@ void build_mesh()
 				std::vector<float> onelineRhoTowardX;
 				for (int k = 0; k < nelx; k++)
 				{
-					onelineRhoTowardX.push_back(mesh_rho[k][i][j]);
+					if (mesh_rho[k][i][j] < elementRhoThreshold)
+						onelineRhoTowardX.push_back(0.0f);
+					else
+						onelineRhoTowardX.push_back(mesh_rho[k][i][j]);
 				}
-
+				std::vector<bool> isBoundOneLine = IntervalMerging(onelineRhoTowardX);
+				for (int k = 0; k < nelx; k++)
+				{
+					if (isBound[k][i][j] == true)
+						continue;
+					else
+						isBound[k][i][j] = isBoundOneLine[k];
+				}
 			}
 		}
 
-
+		for (int i = 0; i < nelx; i++)
+		{
+			for (int j = 0; j < nelz; j++)
+			{
+				for (int k = 0; k < nely; k++)
+				{
+					if (isBound[i][j][k] == false)
+						meshes_rho[s][i][j][k] = 0.0f;
+				}
+			}
+		}
 	}
 
 }
