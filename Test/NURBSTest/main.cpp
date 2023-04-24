@@ -1,6 +1,6 @@
 #pragma comment(lib, "OpenGL32.lib")
 #pragma comment(lib, "GLU32.lib")
-#pragma comment(lib, "winmm.lib")
+// #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "gdiplus.lib")
 
 #include <iostream>
@@ -62,10 +62,10 @@ GLuint controlpointVAO = 0;
 BasicCamera camera;
 float selectiondx = 0;
 float selectiondy = 0;
-int numSegBetweenKnotsU = 15;
-int numSegBetweenKnotsV = 15;
+int numSegBetweenKnotsU = 1;
+int numSegBetweenKnotsV = 1;
 // FIXME: elementRhoThreshold is fixed to 0.2 now
-float elementRhoThreshold = 0.0f;
+float elementRhoThreshold = 0.2f;
 bool wireframe = false;
 
 void Tessellate();
@@ -77,6 +77,7 @@ uint32_t numCptx, numCpty, numCptz;
 std::vector<float> knotx, knoty, knotz;
 std::vector<std::vector<std::vector<uint32_t>>> chan;
 std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho;
+std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho_merge;
 
 // TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float> &buffer);
@@ -96,6 +97,9 @@ int alreadySetupGeom = 0;
 int displayMode = 0;
 bool displayPhysicalBody = false;
 bool displayControlPts = false;
+
+bool useMerging = false;
+bool useMergingDirty = false;
 // ---------------------------------------IMGUI PROPERTIES-------------------------------------
 
 void build_rho()
@@ -104,7 +108,13 @@ void build_rho()
 	{
 		mesh_layers[i].LayerRho.clear();
 	}
-	auto &mesh_rho = meshes_rho[animationRhoIndex];
+
+	std::vector<std::vector<std::vector<std::vector<float>>>> MeshRho;
+	if (useMerging)
+		MeshRho = meshes_rho_merge;
+	else
+		MeshRho = meshes_rho;
+	auto &mesh_rho = MeshRho[animationRhoIndex];
 	// Element density
 	mesh_layers[0].LayerRho.resize(nelx);
 	for (int i = 0; i < nelx; i++)
@@ -373,10 +383,13 @@ void build_mesh()
 			}
 			meshes_rho[s].push_back(face);
 		}
-
+	}
+	meshes_rho_merge = meshes_rho;
 #pragma region Merging
+	for (int s = 0; s < numRhoFiles; s++)
+	{
 		std::vector<std::vector<std::vector<bool>>> isBound(nelx, std::vector<std::vector<bool>>(nelz, std::vector<bool>(nely, false)));
-		auto &mesh_rho = meshes_rho[s];
+		auto &mesh_rho = meshes_rho_merge[s];
 
 		for (int i = 0; i < nelx; i++)
 		{
@@ -456,7 +469,7 @@ void build_mesh()
 				for (int k = 0; k < nely; k++)
 				{
 					if (isBound[i][j][k] == false)
-						meshes_rho[s][i][j][k] = -1.0f;
+						meshes_rho_merge[s][i][j][k] = -1.0f;
 				}
 			}
 		}
@@ -533,15 +546,15 @@ void imguiSetup()
 	// TODO: Add all imgui widgets here.
 	// TODO: Show all control points
 	// show Main Window
-	ImGui::ShowDemoWindow();
-
-	if (ImGui::CollapsingHeader("Style Configuration"))
-	{
-		{
-			ImGui::ShowStyleEditor();
-			ImGui::Spacing();
-		}
-	}
+// 	ImGui::ShowDemoWindow();
+// 
+// 	if (ImGui::CollapsingHeader("Style Configuration"))
+// 	{
+// 		{
+// 			ImGui::ShowStyleEditor();
+// 			ImGui::Spacing();
+// 		}
+// 	}
 
 	if (ImGui::CollapsingHeader("Display Control"))
 	{
@@ -571,6 +584,22 @@ void imguiSetup()
 			{
 				ImGui::SameLine();
 				ImGui::Text("Physical body mode");
+			}
+
+			if (ImGui::Button("Use merging algorithm/not use"))
+			{
+				useMergingDirty = true;
+				useMerging = !useMerging;
+			}
+			if (useMerging)
+			{
+				ImGui::SameLine();
+				ImGui::Text("Using merging algorithm");
+			}
+			else
+			{
+				ImGui::SameLine();
+				ImGui::Text("No merging");
 			}
 
 			ImGui::InputFloat("Rho Threshold", &elementRhoThreshold, 0.01f, 1.0f, "%.3f");
@@ -823,7 +852,6 @@ void Tessellate()
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
-			//-------------------------------------TEST PASS------------------------------------------
 
 			glGenBuffers(1, &cptsBuffer);
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, cptsBuffer);
@@ -839,7 +867,6 @@ void Tessellate()
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
-			//-------------------------------------TEST PASS------------------------------------------
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
@@ -1041,6 +1068,13 @@ void Update(float delta)
 			animationRhoIndex = animationRhoIndex + 1;
 			Tessellate();
 		}
+	}
+
+	if(useMergingDirty)
+	{
+		build_rho();
+		Tessellate();
+		useMergingDirty = false;
 	}
 }
 

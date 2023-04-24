@@ -418,7 +418,7 @@ void main()
 					
 					index2 = groupIDz * (numControlPointsU - degreeU) * (numControlPointsV - degreeV) + groupIDx * (numControlPointsV - degreeV) + groupIDy;
 					float elementRho = elementRhoBuffer.data[index2];
-					surfacevertices.data[index1].Color = vec4(elementRho, elementRho, elementRho, 1.0);
+					surfacevertices.data[index1].Color = vec4(1.0 - elementRho, 1.0 - elementRho, 1.0 - elementRho, 1.0);
 				}
 			}
 		}
