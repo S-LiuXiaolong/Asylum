@@ -384,7 +384,7 @@ void build_mesh()
 {
 	// Get all coords of points.
 	std::vector<float> buffer_cpts;
-	read_float("../../../Asset/matlab_small/controlPts.bin", buffer_cpts);
+	read_float("../../../Asset/matlab_big/controlPts.bin", buffer_cpts);
 
 	mesh_cp_vertices.resize(buffer_cpts.size() / 3);
 
@@ -395,7 +395,7 @@ void build_mesh()
 
 	// Get the nels(but what is nel?) and numControlPts. numCpts = nel + DEGREE.
 	std::vector<uint32_t> buffer_nels;
-	read_uint32t("../../../Asset/matlab_small/nels.bin", buffer_nels);
+	read_uint32t("../../../Asset/matlab_big/nels.bin", buffer_nels);
 	nelx = buffer_nels[0];
 	nely = buffer_nels[1];
 	nelz = buffer_nels[2];
@@ -404,11 +404,11 @@ void build_mesh()
 	numCptz = buffer_nels[2] + DEGREE;
 
 	// Get all weights(same size as the controlPts) from binary file.
-	read_float("../../../Asset/matlab_small/weights.bin", mesh_cp_weights);
+	read_float("../../../Asset/matlab_big/weights.bin", mesh_cp_weights);
 
 	// Get xyz knots from binary file.
 	std::vector<float> buffer_knots;
-	read_float("../../../Asset/matlab_small/knots.bin", buffer_knots);
+	read_float("../../../Asset/matlab_big/knots.bin", buffer_knots);
 	int rowLength = buffer_knots.size() / 3;
 
 	auto knotxBegin = buffer_knots.begin();
@@ -423,7 +423,7 @@ void build_mesh()
 
 	// Get chan(but what is chan?) from binary file.
 	std::vector<uint32_t> buffer_chan;
-	read_uint32t("../../../Asset/matlab_small/chan.bin", buffer_chan);
+	read_uint32t("../../../Asset/matlab_big/chan.bin", buffer_chan);
 	for (int i = 0; i < numCptx; i++)
 	{
 		std::vector<std::vector<uint32_t>> face;
@@ -439,12 +439,12 @@ void build_mesh()
 		chan.push_back(face);
 	}
 
-	int numRhoFiles = GetFileNum("../../../Asset/matlab_small/rho");
+	int numRhoFiles = GetFileNum("../../../Asset/matlab_big/rho");
 	meshes_rho.resize(numRhoFiles);
 	for (int s = 0; s < numRhoFiles; s++)
 	{
 		std::vector<float> buffer_rho;
-		std::string path = "../../../Asset/matlab_small/rho/rho_" + std::to_string(s + 1) + ".bin";
+		std::string path = "../../../Asset/matlab_big/rho/rho_" + std::to_string(s + 1) + ".bin";
 		read_float(path, buffer_rho);
 		for (int i = 0; i < nelx; i++)
 		{
@@ -1011,8 +1011,6 @@ void Tessellate()
 				}
 			}
 
-
-
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
 
@@ -1031,20 +1029,20 @@ void Tessellate()
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
 
-			glGenBuffers(1, &knotuBuffer);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotuBuffer);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotU[0], GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, knotuBuffer);
-
-			glGenBuffers(1, &knotvBuffer);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotvBuffer);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotV[0], GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, knotvBuffer);
-
-			glGenBuffers(1, &knotwBuffer);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotwBuffer);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotW[0], GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, knotwBuffer);
+// 			glGenBuffers(1, &knotuBuffer);
+// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotuBuffer);
+// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotU[0], GL_DYNAMIC_READ);
+// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, knotuBuffer);
+// 
+// 			glGenBuffers(1, &knotvBuffer);
+// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotvBuffer);
+// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotV[0], GL_DYNAMIC_READ);
+// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, knotvBuffer);
+// 
+// 			glGenBuffers(1, &knotwBuffer);
+// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotwBuffer);
+// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotW[0], GL_DYNAMIC_READ);
+// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, knotwBuffer);
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
@@ -1054,6 +1052,9 @@ void Tessellate()
 			tessellatesurfacemy->SetInt("degreeU", DEGREE);
 			tessellatesurfacemy->SetInt("degreeV", DEGREE);
 			tessellatesurfacemy->SetInt("degreeW", DEGREE);
+			tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
+			tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
 
 			tessellatesurfacemy->SetInt("alreadySetupGeom", alreadySetupGeom);
 

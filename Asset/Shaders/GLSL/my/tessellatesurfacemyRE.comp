@@ -8,7 +8,7 @@
 #define MAX_DEGREE	2
 #define MAX_ORDER	3
 // #define MAX_CVS		100
-#define MAX_KNOTS	301
+#define MAX_KNOTS	101
 #define MAX_SPANS	MAX_KNOTS - 1
 
 // FIXME: Normal is not needed. We don't cast a light on the NURBS.
@@ -44,17 +44,17 @@ layout (std430, binding = 4) buffer rhoBuffer {
 	float data[];
 } elementRhoBuffer;
 
-layout (std430, binding = 5) buffer UBuffer {
-	float data[];
-} knotsUBuffer;
+// layout (std430, binding = 5) buffer UBuffer {
+// 	float data[];
+// } knotsUBuffer;
 
-layout (std430, binding = 6) buffer VBuffer {
-	float data[];
-} knotsVBuffer;
+// layout (std430, binding = 6) buffer VBuffer {
+// 	float data[];
+// } knotsVBuffer;
 
-layout (std430, binding = 7) buffer WBuffer {
-	float data[];
-} knotsWBuffer;
+// layout (std430, binding = 7) buffer WBuffer {
+// 	float data[];
+// } knotsWBuffer;
 
 // layout (std430, binding = 5) buffer CoeffsU {
 // 	vec3 data[];
@@ -70,9 +70,9 @@ layout (std430, binding = 7) buffer WBuffer {
 
 
 // TODO: Hard code here may cause fault.
-float knotsU[MAX_KNOTS];
-float knotsV[MAX_KNOTS];
-float knotsW[MAX_KNOTS];
+uniform float knotsU[MAX_KNOTS];
+uniform float knotsV[MAX_KNOTS];
+uniform float knotsW[MAX_KNOTS];
 
 uniform int numControlPointsU;
 uniform int numControlPointsV;
@@ -88,9 +88,9 @@ uniform float elementRhoThreshold;
 uniform int alreadySetupGeom;
 
 // vec4 <=> max degree 3 curves
-shared vec3 CoeffsU[1000];	// MAX_ORDER * MAX_SPANS
-shared vec3 CoeffsV[1000];	// MAX_ORDER * MAX_SPANS
-shared vec3 CoeffsW[1000]; // MAX_ORDER * MAX_SPANS
+shared vec3 CoeffsU[300];	// MAX_ORDER * MAX_SPANS
+shared vec3 CoeffsV[300];	// MAX_ORDER * MAX_SPANS
+shared vec3 CoeffsW[300]; // MAX_ORDER * MAX_SPANS
 
 shared float Blossom[MAX_ORDER * MAX_ORDER * MAX_ORDER];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
 
@@ -163,12 +163,12 @@ void main()
 {
 	if(alreadySetupGeom == 0)
 	{
-		for(int i = 0; i < MAX_KNOTS; i++)
-		{
-			knotsU[i] = knotsUBuffer.data[i]; 
-			knotsV[i] = knotsVBuffer.data[i]; 
-			knotsW[i] = knotsWBuffer.data[i]; 
-		}
+		// for(int i = 0; i < MAX_KNOTS; i++)
+		// {
+		// 	knotsU[i] = knotsUBuffer.data[i]; 
+		// 	knotsV[i] = knotsVBuffer.data[i]; 
+		// 	knotsW[i] = knotsWBuffer.data[i]; 
+		// }
 
 		vec3 cf;
 
