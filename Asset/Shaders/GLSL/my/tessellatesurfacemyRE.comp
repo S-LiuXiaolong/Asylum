@@ -5,8 +5,8 @@
 // NOTE: don't use shared variables as function argument
 
 #define BLOCK_SIZE	16
-#define MAX_DEGREE	3
-#define MAX_ORDER	4
+#define MAX_DEGREE	2
+#define MAX_ORDER	3
 // #define MAX_CVS		100
 #define MAX_KNOTS	101
 #define MAX_SPANS	100
@@ -44,6 +44,18 @@ layout (std430, binding = 4) buffer rhoBuffer {
 	float data[];
 } elementRhoBuffer;
 
+layout (std430, binding = 5) buffer CoeffsU {
+	vec3 data[];
+} CoeffsUBuffer;
+
+layout (std430, binding = 6) buffer CoeffsV {
+	vec3 data[];
+} CoeffsVBuffer;
+
+layout (std430, binding = 7) buffer CoeffsW {
+	vec3 data[];
+} CoeffsWBuffer;
+
 
 // TODO: Hard code here may cause fault.
 uniform float knotsU[MAX_KNOTS];
@@ -63,10 +75,11 @@ uniform int numVtsBetweenKnotsV;
 uniform float elementRhoThreshold;
 uniform int alreadySetupGeom;
 
-// vec4 <=> max degree 3 curves
-shared vec4 CoeffsU[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
-shared vec4 CoeffsV[MAX_ORDER * MAX_SPANS];	// MAX_ORDER * MAX_SPANS
-shared vec4 CoeffsW[MAX_ORDER * MAX_SPANS]; // MAX_ORDER * MAX_SPANS
+// // vec4 <=> max degree 3 curves
+// shared vec3 CoeffsU[300];	// MAX_ORDER * MAX_SPANS
+// shared vec3 CoeffsV[300];	// MAX_ORDER * MAX_SPANS
+// shared vec3 CoeffsW[300]; // MAX_ORDER * MAX_SPANS
+
 shared float Blossom[MAX_ORDER * MAX_ORDER * MAX_ORDER];	// MAX_ORDER * MAX_ORDER * MAX_ORDER
 
 float CalculateCoeff(int i, int degree, int e, int span, float knots[MAX_KNOTS])
@@ -138,7 +151,7 @@ void main()
 {
 	if(alreadySetupGeom == 0)
 	{
-		vec4 cf;
+		vec3 cf;
 
 		int numSegBetweenKnotsU	= numVtsBetweenKnotsU - 1;
 		int numSegBetweenKnotsV	= numVtsBetweenKnotsV - 1;
@@ -155,85 +168,85 @@ void main()
 		int spanU, spanV, spanW, cpU, cpV, cpW;
 		int index1, index2, index3;
 
-		// STEP 1: calculate coefficients
-		if (gl_LocalInvocationIndex == 0)
-		{
-			// NOTE: don't refactor this into a function, it won't work!!!
-			for (int spanU = 0; spanU < numknotsU - 1; ++spanU)
-			{
-				for (int k = 0; k <= min(degreeU, spanU); ++k)
-				{
-					index1 = spanU * MAX_ORDER + k;
+		// // STEP 1: calculate coefficients
+		// if (gl_LocalInvocationIndex == 0)
+		// {
+		// 	// NOTE: don't refactor this into a function, it won't work!!!
+		// 	for (int spanU = 0; spanU < numknotsU - 1; ++spanU)
+		// 	{
+		// 		for (int k = 0; k <= min(degreeU, spanU); ++k)
+		// 		{
+		// 			index1 = spanU * MAX_ORDER + k;
 
-					if (spanU - k < numControlPointsU)
-					{
-						cpU = spanU - k;
+		// 			if (spanU - k < numControlPointsU)
+		// 			{
+		// 				cpU = spanU - k;
 
-						cf.x = CalculateCoeff(cpU, degreeU, 0, spanU, knotsU); // 1
-						cf.y = CalculateCoeff(cpU, degreeU, 1, spanU, knotsU); // u
-						cf.z = CalculateCoeff(cpU, degreeU, 2, spanU, knotsU); // u2
-						cf.w = CalculateCoeff(cpU, degreeU, 3, spanU, knotsU); // u3
+		// 				cf.x = CalculateCoeff(cpU, degreeU, 0, spanU, knotsU); // 1
+		// 				cf.y = CalculateCoeff(cpU, degreeU, 1, spanU, knotsU); // u
+		// 				cf.z = CalculateCoeff(cpU, degreeU, 2, spanU, knotsU); // u2
+		// 				// cf.w = CalculateCoeff(cpU, degreeU, 3, spanU, knotsU); // u3
 
-						CoeffsU[index1] = cf;
-					} else {
-						CoeffsU[index1] = vec4(0.0);
-					}
-				}
-			}
+		// 				CoeffsU[index1] = cf;
+		// 			} else {
+		// 				CoeffsU[index1] = vec3(0.0);
+		// 			}
+		// 		}
+		// 	}
 
-			// NOTE: don't refactor this into a function, it won't work!!!
-			for (int spanV = 0; spanV < numknotsV - 1; ++spanV)
-			{
-				for (int k = 0; k <= min(degreeV, spanV); ++k)
-				{
-					index2 = spanV * MAX_ORDER + k;
+		// 	// NOTE: don't refactor this into a function, it won't work!!!
+		// 	for (int spanV = 0; spanV < numknotsV - 1; ++spanV)
+		// 	{
+		// 		for (int k = 0; k <= min(degreeV, spanV); ++k)
+		// 		{
+		// 			index2 = spanV * MAX_ORDER + k;
 
-					if (spanV - k < numControlPointsV)
-					{
-						cpV = spanV - k;
+		// 			if (spanV - k < numControlPointsV)
+		// 			{
+		// 				cpV = spanV - k;
 
-						cf.x = CalculateCoeff(cpV, degreeV, 0, spanV, knotsV); // 1
-						cf.y = CalculateCoeff(cpV, degreeV, 1, spanV, knotsV); // v
-						cf.z = CalculateCoeff(cpV, degreeV, 2, spanV, knotsV); // v2
-						cf.w = CalculateCoeff(cpV, degreeV, 3, spanV, knotsV); // v3
+		// 				cf.x = CalculateCoeff(cpV, degreeV, 0, spanV, knotsV); // 1
+		// 				cf.y = CalculateCoeff(cpV, degreeV, 1, spanV, knotsV); // v
+		// 				cf.z = CalculateCoeff(cpV, degreeV, 2, spanV, knotsV); // v2
+		// 				// cf.w = CalculateCoeff(cpV, degreeV, 3, spanV, knotsV); // v3
 
-						CoeffsV[index2] = cf;
-					} else {
-						CoeffsV[index2] = vec4(0.0);
-					}
-				}
-			}
+		// 				CoeffsV[index2] = cf;
+		// 			} else {
+		// 				CoeffsV[index2] = vec3(0.0);
+		// 			}
+		// 		}
+		// 	}
 
-			// NOTE: don't refactor this into a function, it won't work!!!
-			for (int spanW = 0; spanW < numknotsW - 1; ++spanW)
-			{
-				for (int k = 0; k <= min(degreeW, spanW); ++k)
-				{
-					index3 = spanW * MAX_ORDER + k;
+		// 	// NOTE: don't refactor this into a function, it won't work!!!
+		// 	for (int spanW = 0; spanW < numknotsW - 1; ++spanW)
+		// 	{
+		// 		for (int k = 0; k <= min(degreeW, spanW); ++k)
+		// 		{
+		// 			index3 = spanW * MAX_ORDER + k;
 
-					if (spanW - k < numControlPointsW)
-					{
-						cpW = spanW - k;
+		// 			if (spanW - k < numControlPointsW)
+		// 			{
+		// 				cpW = spanW - k;
 
-						cf.x = CalculateCoeff(cpW, degreeW, 0, spanW, knotsW); // 1
-						cf.y = CalculateCoeff(cpW, degreeW, 1, spanW, knotsW); // w
-						cf.z = CalculateCoeff(cpW, degreeW, 2, spanW, knotsW); // w2
-						cf.w = CalculateCoeff(cpW, degreeW, 3, spanW, knotsW); // w3
+		// 				cf.x = CalculateCoeff(cpW, degreeW, 0, spanW, knotsW); // 1
+		// 				cf.y = CalculateCoeff(cpW, degreeW, 1, spanW, knotsW); // w
+		// 				cf.z = CalculateCoeff(cpW, degreeW, 2, spanW, knotsW); // w2
+		// 				// cf.w = CalculateCoeff(cpW, degreeW, 3, spanW, knotsW); // w3
 
-						CoeffsW[index3] = cf;
-					} else {
-						CoeffsW[index3] = vec4(0.0);
-					}
-				}
-			}
-		}
+		// 				CoeffsW[index3] = cf;
+		// 			} else {
+		// 				CoeffsW[index3] = vec3(0.0);
+		// 			}
+		// 		}
+		// 	}
+		// }
 
 		barrier();
 
 		// STEP 2: fill vertex buffer
 		vec4 pos;
-		vec4 polyU, polyV, polyW;
-		vec4 dUpoly, dVpoly, dWpoly;
+		vec3 polyU, polyV, polyW;
+		vec3 dUpoly, dVpoly, dWpoly;
 		vec3 tangent, bitangent;
 
 		ivec2 loc = ivec2(gl_LocalInvocationID.xy);
@@ -271,8 +284,8 @@ void main()
 		{
 			w = s;
 			w = mix(firstW, nextW, w);
-			polyW = vec4(1.0, w, w * w, w * w * w);
-			dWpoly = vec4(0.0, 1.0, 2.0 * w, 3.0 * w * w);
+			polyW = vec3(1.0, w, w * w);
+			dWpoly = vec3(0.0, 1.0, 2.0 * w);
 
 			for (spanW = 0; spanW < lastspanW; ++spanW) {
 				if ((knotsW[spanW] <= w && w < knotsW[spanW + 1]))
@@ -284,8 +297,8 @@ void main()
 				u = float(i) / float(numSegBetweenKnotsU);
 				u = mix(firstU, nextU, u);
 
-				polyU = vec4(1.0, u, u * u, u * u * u);
-				dUpoly = vec4(0.0, 1.0, 2.0 * u, 3.0 * u * u);
+				polyU = vec3(1.0, u, u * u);
+				dUpoly = vec3(0.0, 1.0, 2.0 * u);
 
 				for (spanU = 0; spanU < lastspanU; ++spanU) {
 					if ((knotsU[spanU] <= u && u < knotsU[spanU + 1]))
@@ -297,8 +310,8 @@ void main()
 					v = float(j) / float(numSegBetweenKnotsV);
 					v = mix(firstV, nextV, v);
 
-					polyV = vec4(1.0, v, v * v, v * v * v);
-					dVpoly = vec4(0.0, 1.0, 2.0 * v, 3.0 * v * v);
+					polyV = vec3(1.0, v, v * v);
+					dVpoly = vec3(0.0, 1.0, 2.0 * v);
 
 					for (spanV = 0; spanV < lastspanV; ++spanV) {
 						if ((knotsV[spanV] <= v && v < knotsV[spanV + 1]))
@@ -321,12 +334,13 @@ void main()
 								cpU = (spanU - k) % numControlPointsU;
 								cpV = (spanV - l) % numControlPointsV;
 
-								cf = controlPointsBuffer.Position[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
+								vec4 p = controlPointsBuffer.Position[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
 								weight = weightsBuffer.data[cpW * numControlPointsU * numControlPointsV + cpU * numControlPointsV + cpV];
 
-								c = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
+								c = dot(CoeffsWBuffer.data[index1], polyW) * dot(CoeffsUBuffer.data[index2], polyU) * dot(CoeffsVBuffer.data[index3], polyV) * weight;
+								// c = dot(CoeffsW[index1], polyW) * dot(CoeffsU[index2], polyU) * dot(CoeffsV[index3], polyV) * weight;
 
-								pos += cf * c;	// f
+								pos += p * c;	// f
 								denom += c;		// g
 							}
 						}
@@ -378,7 +392,7 @@ void main()
 	// TODO: ///
 	else
 	{
-		vec4 cf;
+		vec3 cf;
 
 		int numSegBetweenKnotsU	= numVtsBetweenKnotsU - 1;
 		int numSegBetweenKnotsV	= numVtsBetweenKnotsV - 1;

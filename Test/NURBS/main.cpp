@@ -165,7 +165,7 @@ bool InitScene()
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
 	glClearDepth(1.0);
 
 	glEnable(GL_CULL_FACE);
@@ -574,7 +574,7 @@ void Render(float alpha, float elapsedtime)
 	Math::MatrixOrthoOffCenterRH(proj, splineviewport[0], splineviewport[2], splineviewport[1], splineviewport[3], -1, 1);
 
 	glViewport(0, 0, screenwidth, screenheight);
-	glClearColor(1, 1, 1, 1);
+	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_DEPTH_TEST);
 
@@ -620,7 +620,7 @@ void Render(float alpha, float elapsedtime)
 		glScissor(screenwidth - surfvpwidth - 10, screenheight - surfvpheight - 10, surfvpwidth, surfvpheight);
 	}
 
-	glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
 

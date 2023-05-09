@@ -32,6 +32,11 @@ extern "C"
 	}
 
 #define DEGREE 2
+#define MAX_DEGREE	2
+#define MAX_ORDER	3
+// #define MAX_CVS		100
+#define MAX_KNOTS	101
+#define MAX_SPANS	100
 
 struct NURBSLayerData
 {
@@ -51,7 +56,9 @@ OpenGLEffect *rendersurface = nullptr;
 OpenGLEffect *tessellatesurfacemy = nullptr;
 OpenGLEffect *rendercontrolpts = nullptr;
 OpenGLScreenQuad *screenquad = nullptr;
+
 uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
+uint32_t CoeffsUHandle, CoeffsVHandle, CoeffsWHandle;
 
 std::vector<OpenGLMesh *> surfacegroup;
 OpenGLMesh *sphere = nullptr; // for drawing control points
@@ -82,6 +89,75 @@ std::vector<std::vector<std::vector<std::vector<float>>>> meshes_rho_merge;
 // TODO: Maybe put these functions into another utility file?
 void read_float(std::string strFile, std::vector<float> &buffer);
 void read_uint32t(std::string strFile, std::vector<uint32_t> &buffer);
+
+float Blossom[27];
+float CalculateCoeff(int i, int degree, int e, int span, float* knots)
+{
+	float	kin1, ki1, kin, ki;
+	float	a, b;
+	int		order = degree + 1;
+	int		k, n, l;
+	int		index1, index2, index3;
+
+	if (e > degree)
+		return 0.0;
+
+	for (k = 0; k <= e; ++k) {
+		for (n = k; n < order; ++n) {
+			for (l = 0; l < order - n; ++l) {
+				kin1 = knots[i + l + n + 1];
+				ki1 = knots[i + l + 1];
+				kin = knots[i + l + n];
+				ki = knots[i + l];
+
+				a = b = 0;
+
+				index1 = (k * MAX_ORDER + n) * MAX_ORDER + l;
+				index2 = (k * MAX_ORDER + n - 1) * MAX_ORDER + l;
+				index3 = ((k - 1) * MAX_ORDER + n - 1) * MAX_ORDER + l;
+
+				if (n == 0) {
+					// C_i,0,0
+					Blossom[index1] = ((i + l == span) ? 1.0 : 0.0);
+				}
+				else if (k == 0) {
+					// C_i,n,0
+					if (kin1 != ki1)
+						a = kin1 / (kin1 - ki1);
+
+					if (kin != ki)
+						b = ki / (kin - ki);
+
+					Blossom[index1] = Blossom[index2 + 1] * a - Blossom[index2] * b;
+				}
+				else if (k == n) {
+					// C_i,n,n
+					if (kin != ki)
+						a = 1.0 / (kin - ki);
+
+					if (kin1 != ki1)
+						b = 1.0 / (kin1 - ki1);
+
+					Blossom[index1] = Blossom[index3] * a - Blossom[index3 + 1] * b;
+				}
+				else {
+					// C_i,n,k
+					if (kin != ki)
+						a = (Blossom[index3] - ki * Blossom[index2]) / (kin - ki);
+
+					if (kin1 != ki1)
+						b = (Blossom[index3 + 1] - kin1 * Blossom[index2 + 1]) / (kin1 - ki1);
+
+					Blossom[index1] = a - b;
+				}
+			}
+		}
+	}
+
+	return Blossom[(e * MAX_ORDER + degree) * MAX_ORDER];
+}
+////// coeff compute //////
+
 
 // ---------------------------------------IMGUI PROPERTIES-------------------------------------
 bool animationPlaying = false;
@@ -547,14 +623,14 @@ void imguiSetup()
 	// TODO: Show all control points
 	// show Main Window
 // 	ImGui::ShowDemoWindow();
-// 
-// 	if (ImGui::CollapsingHeader("Style Configuration"))
-// 	{
-// 		{
-// 			ImGui::ShowStyleEditor();
-// 			ImGui::Spacing();
-// 		}
-// 	}
+
+	if (ImGui::CollapsingHeader("Style Configuration"))
+	{
+		{
+			ImGui::ShowStyleEditor();
+			ImGui::Spacing();
+		}
+	}
 
 	if (ImGui::CollapsingHeader("Display Control"))
 	{
@@ -676,7 +752,7 @@ bool InitScene()
 	uint32_t screenwidth = app->GetClientWidth();
 	uint32_t screenheight = app->GetClientHeight();
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
 	glClearDepth(1.0);
 
 	glEnable(GL_CULL_FACE);
@@ -805,6 +881,92 @@ void Tessellate()
 			int numVerticesU = (numSegBetweenKnotsU + 1) * nelU;
 			int numVerticesV = (numSegBetweenKnotsV + 1) * nelV;
 
+			///////////////////////// Compute Coeff //////////////////////////
+			
+			for(int i = 0; i < 27 ; i++)
+			{
+				Blossom[i] = 0.0f;
+			}
+			int cpU, cpV, cpW;
+			int index1, index2, index3;
+			Math::Vector3 CoeffsU[1000];
+			Math::Vector3 CoeffsV[1000];
+			Math::Vector3 CoeffsW[1000];
+
+			// NOTE: don't refactor this into a function, it won't work!!!
+			for (int spanU = 0; spanU < numCptU + DEGREE; ++spanU)
+			{
+				for (int k = 0; k <= min(DEGREE, spanU); ++k)
+				{
+					index1 = spanU * MAX_ORDER + k;
+
+					if (spanU - k < numCptU)
+					{
+						Math::Vector3 cf;
+						cpU = spanU - k;
+
+						cf.x = CalculateCoeff(cpU, DEGREE, 0, spanU, &knotU[0]); // 1
+						cf.y = CalculateCoeff(cpU, DEGREE, 1, spanU, &knotU[0]); // u
+						cf.z = CalculateCoeff(cpU, DEGREE, 2, spanU, &knotU[0]); // u2
+
+						CoeffsU[index1] = cf;
+					}
+					else {
+						CoeffsU[index1] = Math::Vector3(0.0, 0.0, 0.0);
+					}
+				}
+			}
+
+			// NOTE: don't refactor this into a function, it won't work!!!
+			for (int spanV = 0; spanV < numCptV + DEGREE; ++spanV)
+			{
+				for (int k = 0; k <= min(DEGREE, spanV); ++k)
+				{
+					index2 = spanV * MAX_ORDER + k;
+
+					if (spanV - k < numCptV)
+					{
+						Math::Vector3 cf;
+						cpV = spanV - k;
+
+						cf.x = CalculateCoeff(cpV, DEGREE, 0, spanV, &knotV[0]); // 1
+						cf.y = CalculateCoeff(cpV, DEGREE, 1, spanV, &knotV[0]); // v
+						cf.z = CalculateCoeff(cpV, DEGREE, 2, spanV, &knotV[0]); // v2
+
+						CoeffsV[index2] = cf;
+					}
+					else {
+						CoeffsV[index2] = Math::Vector3(0.0, 0.0, 0.0);
+					}
+				}
+			}
+
+			// NOTE: don't refactor this into a function, it won't work!!!
+			for (int spanW = 0; spanW < numCptW + DEGREE; ++spanW)
+			{
+				for (int k = 0; k <= min(DEGREE, spanW); ++k)
+				{
+					index3 = spanW * MAX_ORDER + k;
+
+					if (spanW - k < numCptW)
+					{
+						Math::Vector3 cf;
+						cpW = spanW - k;
+
+						cf.x = CalculateCoeff(cpW, DEGREE, 0, spanW, &knotW[0]); // 1
+						cf.y = CalculateCoeff(cpW, DEGREE, 1, spanW, &knotW[0]); // w
+						cf.z = CalculateCoeff(cpW, DEGREE, 2, spanW, &knotW[0]); // w2
+
+						CoeffsW[index3] = cf;
+					}
+					else {
+						CoeffsW[index3] = Math::Vector3(0.0, 0.0, 0.0);
+					}
+				}
+			}
+
+			///////////////////////// Compute Coeff //////////////////////////
+
 			OpenGLMesh *surface = nullptr;
 
 			// create surface
@@ -850,6 +1012,8 @@ void Tessellate()
 				}
 			}
 
+
+
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, surface->GetVertexBuffer());
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, surface->GetIndexBuffer());
 
@@ -867,6 +1031,21 @@ void Tessellate()
 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, rhoBuffer);
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
+
+			glGenBuffers(1, &CoeffsUHandle);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsUHandle);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsU, GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, CoeffsUHandle);
+
+			glGenBuffers(1, &CoeffsVHandle);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsVHandle);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsV, GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, CoeffsVHandle);
+
+			glGenBuffers(1, &CoeffsWHandle);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsWHandle);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsW, GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, CoeffsWHandle);
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
@@ -890,6 +1069,12 @@ void Tessellate()
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, 0);
 
 			glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
 
@@ -1104,7 +1289,7 @@ void Render(float alpha, float elapsedtime)
 
 	Math::MatrixIdentity(world);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.125f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_SCISSOR_TEST);
 
