@@ -1029,20 +1029,6 @@ void Tessellate()
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
 
-// 			glGenBuffers(1, &knotuBuffer);
-// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotuBuffer);
-// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotU[0], GL_DYNAMIC_READ);
-// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, knotuBuffer);
-// 
-// 			glGenBuffers(1, &knotvBuffer);
-// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotvBuffer);
-// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotV[0], GL_DYNAMIC_READ);
-// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, knotvBuffer);
-// 
-// 			glGenBuffers(1, &knotwBuffer);
-// 			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotwBuffer);
-// 			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotW[0], GL_DYNAMIC_READ);
-// 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, knotwBuffer);
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
