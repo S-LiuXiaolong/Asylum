@@ -35,8 +35,8 @@ extern "C"
 #define MAX_DEGREE	2
 #define MAX_ORDER	3
 // #define MAX_CVS		100
-#define MAX_KNOTS	101
-#define MAX_SPANS	100
+#define MAX_KNOTS	301
+#define MAX_SPANS	300
 
 struct NURBSLayerData
 {
@@ -58,6 +58,7 @@ OpenGLEffect *rendercontrolpts = nullptr;
 OpenGLScreenQuad *screenquad = nullptr;
 
 uint32_t cptsBuffer, wtsBuffer, rhoBuffer;
+uint32_t knotuBuffer, knotvBuffer, knotwBuffer;
 uint32_t CoeffsUHandle, CoeffsVHandle, CoeffsWHandle;
 
 std::vector<OpenGLMesh *> surfacegroup;
@@ -549,10 +550,8 @@ void build_mesh()
 				}
 			}
 		}
-#pragma endregion Merging
-
 	}
-
+#pragma endregion Merging
 
 	build_surface();
 }
@@ -1032,20 +1031,20 @@ void Tessellate()
 			glBufferData(GL_SHADER_STORAGE_BUFFER, nelU * nelV * nelW * sizeof(float), surfacerho, GL_STATIC_READ);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, rhoBuffer);
 
-			glGenBuffers(1, &CoeffsUHandle);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsUHandle);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsU, GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, CoeffsUHandle);
+			glGenBuffers(1, &knotuBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotuBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotU[0], GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, knotuBuffer);
 
-			glGenBuffers(1, &CoeffsVHandle);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsVHandle);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsV, GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, CoeffsVHandle);
+			glGenBuffers(1, &knotvBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotvBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotV[0], GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, knotvBuffer);
 
-			glGenBuffers(1, &CoeffsWHandle);
-			glBindBuffer(GL_SHADER_STORAGE_BUFFER, CoeffsWHandle);
-			glBufferData(GL_SHADER_STORAGE_BUFFER, 1000 * sizeof(Math::Vector3), CoeffsW, GL_DYNAMIC_READ);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, CoeffsWHandle);
+			glGenBuffers(1, &knotwBuffer);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, knotwBuffer);
+			glBufferData(GL_SHADER_STORAGE_BUFFER, MAX_KNOTS * sizeof(float), &knotW[0], GL_DYNAMIC_READ);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, knotwBuffer);
 
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsU", numSegBetweenKnotsU + 1);
 			tessellatesurfacemy->SetInt("numVtsBetweenKnotsV", numSegBetweenKnotsV + 1);
@@ -1055,9 +1054,6 @@ void Tessellate()
 			tessellatesurfacemy->SetInt("degreeU", DEGREE);
 			tessellatesurfacemy->SetInt("degreeV", DEGREE);
 			tessellatesurfacemy->SetInt("degreeW", DEGREE);
-			tessellatesurfacemy->SetFloatArray("knotsU", &knotU[0], numCptU + DEGREE + 1);
-			tessellatesurfacemy->SetFloatArray("knotsV", &knotV[0], numCptV + DEGREE + 1);
-			tessellatesurfacemy->SetFloatArray("knotsW", &knotW[0], numCptW + DEGREE + 1);
 
 			tessellatesurfacemy->SetInt("alreadySetupGeom", alreadySetupGeom);
 
@@ -1069,12 +1065,6 @@ void Tessellate()
 
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
 			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 4, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 6, 0);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, 0);
 
 			glMemoryBarrier(GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT | GL_ELEMENT_ARRAY_BARRIER_BIT);
 
